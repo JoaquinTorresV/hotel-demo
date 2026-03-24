@@ -48,7 +48,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"],
 # ─── Config global (editable desde el frontend sin tocar código) ─────────────
 CONFIG = {
     # Cuenta remitente (Gmail que MANDA los correos)
-    "email_remitente":  "",   # ej: sistema@hotelpacificosur.cl
+    "email_remitente":  "",   # ej: sistema@renaissancesantiago.cl
     "email_password":   "",   # Contraseña de aplicación Gmail (16 caracteres)
     # Destinatarios
     "email_aprobador":  "",   # Recibe alertas Zona Amarilla
@@ -113,7 +113,7 @@ def extraer_datos(ruta_pdf: str) -> dict:
             texto = "\n".join(p.extract_text() or "" for p in pdf.pages)
 
         ruts = re.findall(r"\b\d{1,2}\.\d{3}\.\d{3}-[\dKk]\b", texto)
-        ruts_prov = [r for r in ruts if r != "76.543.210-8"]
+        ruts_prov = [r for r in ruts if r != "96.534.720-8"]
         if ruts_prov:
             datos["rut"] = ruts_prov[0]
 
@@ -416,7 +416,33 @@ async def procesar_documento(archivo: UploadFile = File(...)):
 
 @app.get("/documentos")
 def listar_documentos():
-    return {"total": len(DOCUMENTOS), "documentos": list(DOCUMENTOS.values())}
+    # Aplanar estructura para que el frontend reciba campos directos
+    docs_planos = []
+    for doc in DOCUMENTOS.values():
+        datos = doc.get("datos", {})
+        clasificacion = doc.get("clasificacion", {})
+        docs_planos.append({
+            "doc_id":        doc["id"],
+            "archivo":       doc.get("archivo", ""),
+            "timestamp":     doc["timestamp"],
+            "estado":        doc.get("estado", ""),
+            "zona":          doc.get("estado", ""),
+            # Campos de datos (antes estaban anidados en .datos)
+            "proveedor":     datos.get("proveedor"),
+            "rut":           datos.get("rut"),
+            "folio":         datos.get("folio"),
+            "total_clp":     datos.get("total", 0),
+            "fecha_emision":       datos.get("fecha_emision"),
+            "fecha_vencimiento":   datos.get("fecha_vencimiento"),
+            # Clasificacion
+            "motivos":   clasificacion.get("motivos", []),
+            "accion":    clasificacion.get("accion", ""),
+            "zona_label": clasificacion.get("zona", doc.get("estado", "")),
+            "email_enviado": True,
+            # Historial
+            "historial":  doc.get("historial", []),
+        })
+    return {"total": len(docs_planos), "documentos": docs_planos}
 
 @app.get("/aprobar/{doc_id}", response_class=HTMLResponse)
 def aprobar(doc_id: str):
