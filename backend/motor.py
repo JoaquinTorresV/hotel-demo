@@ -17,11 +17,29 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 import pdfplumber
-import re, uuid, datetime, os, smtplib, tempfile
+import re, uuid, datetime, os, smtplib, tempfile, json, pathlib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pydantic import BaseModel
 from typing import Optional
+
+# Persistencia JSON config
+CONFIG_FILE = pathlib.Path("config.json")
+
+def cargar_config() -> dict:
+    if CONFIG_FILE.exists():
+        try:
+            return json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
+        except Exception as ex:
+            print(f"  [CONFIG] Error leyendo config.json: {ex}")
+    return {}
+
+def guardar_config(cfg: dict):
+    try:
+        CONFIG_FILE.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"  [CONFIG] Guardado en {CONFIG_FILE.resolve()}")
+    except Exception as ex:
+        print(f"  [CONFIG] Error guardando config.json: {ex}")
 
 app = FastAPI(title="Motor Aprobación Documental — Hotel Pacifico Sur")
 app.add_middleware(CORSMiddleware, allow_origins=["*"],
@@ -48,6 +66,9 @@ CONFIG = {
     # URL base para botones en emails
     "base_url": "http://localhost:8000",
 }
+
+# Cargar config guardada al arrancar (persiste entre reinicios)
+CONFIG.update(cargar_config())
 
 # ─── Modelo Pydantic para recibir config desde el frontend ───────────────────
 class ConfigUpdate(BaseModel):
@@ -325,9 +346,8 @@ def set_configuracion(body: ConfigUpdate):
     """Guarda config enviada desde el frontend."""
     update = body.model_dump(exclude_none=True)
     CONFIG.update(update)
-    print(f"\n  [CONFIG] Configuración actualizada: {list(update.keys())}")
-    if CONFIG.get("email_remitente") and CONFIG.get("email_password"):
-        print(f"  [CONFIG] Email remitente configurado: {CONFIG['email_remitente']}")
+    guardar_config(CONFIG)  # persiste en config.json
+    print(f"\n  [CONFIG] Actualizado y guardado: {list(update.keys())}")
     return {"ok": True, "email_configurado": email_configurado(), "campos_actualizados": list(update.keys())}
 
 @app.post("/procesar")
