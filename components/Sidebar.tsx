@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Settings, FileText, Hotel } from 'lucide-react'
+import { LayoutDashboard, Settings, FileText, Hotel, Send } from 'lucide-react'
 
 export default function Sidebar() {
   const path = usePathname()
