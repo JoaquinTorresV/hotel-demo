@@ -14,7 +14,7 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 import pdfplumber
-import re, uuid, datetime, json, os, smtplib
+import re, uuid, datetime, json, os, smtplib, tempfile
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
@@ -330,10 +330,10 @@ async def procesar_documento(archivo: UploadFile = File(...)):
     if not archivo.filename.endswith(".pdf"):
         raise HTTPException(400, "Solo se aceptan archivos PDF")
 
-    # Guardar temporalmente
-    tmp = f"/tmp/{uuid.uuid4()}.pdf"
-    with open(tmp, "wb") as f:
-        f.write(await archivo.read())
+    # Guardar temporalmente (compatible Windows/Mac/Linux)
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+        tmp_file.write(await archivo.read())
+        tmp = tmp_file.name
 
     # Pipeline completo
     doc_id = str(uuid.uuid4())[:8].upper()
