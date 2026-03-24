@@ -39,3 +39,37 @@ export async function healthCheck(): Promise<boolean> {
     return res.ok
   } catch { return false }
 }
+
+export interface ConfigData {
+  email_remitente: string
+  email_password: string
+  email_aprobador: string
+  email_gerencia: string
+  whatsapp_activo: boolean
+  whatsapp_numero: string
+  umbral_verde: number
+  umbral_rojo: number
+  tolerancia: number
+  dias_duplicados: number
+  sla_24h: boolean
+  sla_48h: boolean
+  sla_72h: boolean
+  sla_96h: boolean
+  email_password_set?: boolean
+}
+
+export async function getConfiguracion(): Promise<ConfigData> {
+  const res = await fetch(`${API}/configuracion`)
+  if (!res.ok) throw new Error(`Error ${res.status}`)
+  return res.json()
+}
+
+export async function saveConfiguracion(data: Partial<ConfigData>): Promise<{ ok: boolean; email_configurado: boolean }> {
+  const res = await fetch(`${API}/configuracion`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  if (!res.ok) throw new Error(`Error ${res.status}`)
+  return res.json()
+}
