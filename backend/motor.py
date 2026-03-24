@@ -1,5 +1,5 @@
 """
-Motor de clasificación de documentos financieros — Hotel Pacifico Sur
+Motor de clasificación de documentos financieros — Hotel
 FastAPI backend para la demo.
 
 Endpoints:
@@ -41,7 +41,7 @@ def guardar_config(cfg: dict):
     except Exception as ex:
         print(f"  [CONFIG] Error guardando config.json: {ex}")
 
-app = FastAPI(title="Motor Aprobación Documental — Hotel Pacifico Sur")
+app = FastAPI(title="Motor Aprobación Documental — Hotel")
 app.add_middleware(CORSMiddleware, allow_origins=["*"],
                    allow_methods=["*"], allow_headers=["*"])
 
@@ -215,7 +215,7 @@ def enviar_email(destinatario: str, asunto: str, html: str) -> bool:
         remitente = CONFIG["email_remitente"]
         msg = MIMEMultipart("alternative")
         msg["Subject"] = asunto
-        msg["From"]    = f"Sistema Hotel Pacifico Sur <{remitente}>"
+        msg["From"]    = f"Sistema Hotel <{remitente}>"
         msg["To"]      = destinatario
         msg.attach(MIMEText(html, "html", "utf-8"))
         with smtplib.SMTP("smtp.gmail.com", 587) as s:
@@ -272,7 +272,7 @@ def email_zona_verde_resumen(docs_verdes: list) -> str:
     return f"""<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#333">
 <div style="background:#1a3a5c;padding:16px 20px;border-radius:8px 8px 0 0">
   <h2 style="color:white;margin:0;font-size:16px">Resumen diario — Documentos procesados automáticamente</h2>
-  <p style="color:#adc8e8;margin:4px 0 0;font-size:13px">{datetime.date.today().strftime('%d/%m/%Y')} · Hotel Pacifico Sur</p>
+  <p style="color:#adc8e8;margin:4px 0 0;font-size:13px">{datetime.date.today().strftime('%d/%m/%Y')} · Hotel</p>
 </div>
 <div style="border:1px solid #ddd;border-top:none;padding:20px;border-radius:0 0 8px 8px">
   <div style="display:flex;gap:16px;margin-bottom:20px">
@@ -331,7 +331,7 @@ def health():
     return {
         "status": "ok",
         "email_configurado": email_configurado(),
-        "sistema": "Motor Aprobación Documental — Hotel Pacifico Sur"
+        "sistema": "Motor Aprobación Documental — Hotel"
     }
 
 @app.get("/configuracion")
@@ -470,7 +470,7 @@ def solicitar_info(doc_id: str):
 
 if __name__ == "__main__":
     import uvicorn
-    print("\n Motor de Aprobación Documental — Hotel Pacifico Sur")
+    print("\n Motor de Aprobación Documental — Hotel")
     print(" ─────────────────────────────────────────────────")
     print(" API:  http://localhost:8000")
     print(" Docs: http://localhost:8000/docs")

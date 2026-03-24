@@ -10,7 +10,7 @@ function ZonaBadge({ zona }: { zona: string }) {
   return <span className={`badge-${zona}`} style={{ padding: '2px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600 }}>{ZONA_LABEL[zona]??zona}</span>
 }
 
-function fmtCLP(n: number) { return `$ ${n.toLocaleString('es-CL')}` }
+function fmtCLP(n: number | undefined | null) { return n !== null && n !== undefined && typeof n === 'number' ? `$ ${n.toLocaleString('es-CL')}` : '—' }
 function fmtDate(ts: string) { return new Date(ts).toLocaleString('es-CL', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) }
 
 export default function Documentos() {
@@ -67,7 +67,7 @@ export default function Documentos() {
             </thead>
             <tbody>
               {filtrados.map((doc, i) => (
-                <tr key={doc.doc_id} style={{ borderBottom: '1px solid var(--gray-100)', background: i % 2 === 0 ? 'white' : 'var(--gray-50)' }}>
+                <tr key={doc.doc_id || i} style={{ borderBottom: '1px solid var(--gray-100)', background: i % 2 === 0 ? 'white' : 'var(--gray-50)' }}>
                   <td style={{ padding: '12px 16px' }}><ZonaBadge zona={doc.zona} /></td>
                   <td style={{ padding: '12px 16px', fontWeight: 500 }}>{doc.proveedor ?? '—'}</td>
                   <td style={{ padding: '12px 16px', fontFamily: 'IBM Plex Mono, monospace', fontSize: 12, color: 'var(--gray-600)' }}>

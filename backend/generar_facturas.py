@@ -76,8 +76,8 @@ def construir_factura(nombre_archivo, color_banda, tipo_doc,
     encabezado = Table([
         [
             Table([
-                [Paragraph("Hotel Pacifico Sur", e["hotel"])],
-                [Paragraph("Av. del Mar 1840, Viña del Mar", e["rut_hotel"])],
+                [Paragraph("Hotel", e["hotel"])],
+                [Paragraph("Av. del Mar 1840, Viña del Mar", e["rut_hotel"])],  
                 [Paragraph("R.U.T.: 76.543.210-8 | Giro: Servicios Hoteleros", e["rut_hotel"])],
                 [Paragraph("Tel: +56 32 298 4000 | contacto@hotelpacificosur.cl", e["rut_hotel"])],
             ], colWidths=[10*cm]),
@@ -209,7 +209,7 @@ def construir_factura(nombre_archivo, color_banda, tipo_doc,
         "Documento tributario electrónico — Timbre electrónico SII — Resolución Ex. SII N°80 del 22/08/2014",
         e["pie"]))
     historia.append(Paragraph(
-        "Hotel Pacifico Sur SpA | Av. del Mar 1840, Viña del Mar, Valparaíso | www.hotelpacificosur.cl",
+        "Hotel SpA | Av. del Mar 1840, Viña del Mar, Valparaíso | www.hotelpacificosur.cl",
         e["pie"]))
 
     doc.build(historia)

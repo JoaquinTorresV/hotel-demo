@@ -3,7 +3,7 @@ import './globals.css'
 import Sidebar from '@/components/Sidebar'
 
 export const metadata: Metadata = {
-  title: 'Hotel Pacifico Sur — Sistema de Aprobación',
+  title: 'Hotel — Sistema de Aprobación',
   description: 'Automatización de documentos financieros',
 }
 

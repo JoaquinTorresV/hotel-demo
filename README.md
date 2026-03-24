@@ -1,4 +1,4 @@
-# Hotel Pacifico Sur — Sistema de Aprobación Documental
+# Hotel — Sistema de Aprobación Documental
 
 Demo de automatización financiera para hoteles. Clasifica facturas PDF en zonas Verde/Amarilla/Roja y envía notificaciones automáticas por email.
 

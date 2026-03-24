@@ -26,8 +26,8 @@ function ZonaBadge({ zona }: { zona: string }) {
   )
 }
 
-function formatCLP(n: number) {
-  return `$ ${n.toLocaleString('es-CL')} CLP`
+function formatCLP(n: number | undefined | null) {
+  return n !== null && n !== undefined && typeof n === 'number' ? `$ ${n.toLocaleString('es-CL')} CLP` : '—'
 }
 
 function timeAgo(ts: string) {
@@ -210,12 +210,12 @@ export default function Dashboard() {
 
                 <div style={{ marginBottom: 12 }}>
                   <p style={{ margin: '0 0 6px', fontSize: 11, fontWeight: 600, color: 'var(--gray-600)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Reglas aplicadas</p>
-                  {resultado.motivos.map((m, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginBottom: 4 }}>
+                  {resultado.motivos && resultado.motivos.length > 0 ? resultado.motivos.map((m, i) => (
+                    <div key={`motivo-${i}`} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginBottom: 4 }}>
                       <ChevronRight size={12} style={{ flexShrink: 0, marginTop: 2, color: ZONA_COLOR[resultado.zona] }} />
                       <span style={{ fontSize: 12 }}>{m}</span>
                     </div>
-                  ))}
+                  )) : <p style={{ fontSize: 12, color: 'var(--gray-400)' }}>Sin detalle de reglas</p>}
                 </div>
 
                 <div style={{ background: 'rgba(255,255,255,0.7)', borderRadius: 8, padding: '10px 12px', marginBottom: 10 }}>
@@ -235,7 +235,7 @@ export default function Dashboard() {
             <div style={{ background: 'white', borderRadius: 16, padding: 24, border: '1px solid var(--gray-200)' }}>
               <p style={{ margin: '0 0 14px', fontSize: 13, fontWeight: 600, color: 'var(--gray-600)' }}>Últimos documentos</p>
               {docs.slice(0, 5).map((doc, i) => (
-                <div key={doc.doc_id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: i < Math.min(docs.length, 5) - 1 ? '1px solid var(--gray-100)' : 'none' }}>
+                <div key={doc.doc_id || i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: i < Math.min(docs.length, 5) - 1 ? '1px solid var(--gray-100)' : 'none' }}>
                   <ZonaBadge zona={doc.zona} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <p style={{ margin: 0, fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.proveedor ?? doc.archivo}</p>

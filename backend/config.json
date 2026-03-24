@@ -1,0 +1,17 @@
+{
+  "email_remitente": "joaquintorresv2005@gmail.com",
+  "email_password": "nxvh uimh diux cuhh",
+  "email_aprobador": "joaquintv2005@gmail.com",
+  "email_gerencia": "webboost.bot@gmail.com",
+  "whatsapp_activo": false,
+  "whatsapp_numero": "",
+  "umbral_verde": 1000000,
+  "umbral_rojo": 10000000,
+  "tolerancia": 15.0,
+  "dias_duplicados": 90,
+  "sla_24h": true,
+  "sla_48h": true,
+  "sla_72h": true,
+  "sla_96h": true,
+  "base_url": "http://localhost:8000"
+}

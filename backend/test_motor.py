@@ -18,7 +18,7 @@ COLORES = {"verde": "\033[32m", "amarilla": "\033[33m", "roja": "\033[31m"}
 RESET   = "\033[0m"
 
 print(f"\n{'═'*62}")
-print(f"  MOTOR DE APROBACIÓN — HOTEL PACIFICO SUR — TEST")
+print(f"  MOTOR DE APROBACIÓN — HOTEL — TEST")
 print(f"{'═'*62}")
 
 for ruta, zona_esperada in FACTURAS:

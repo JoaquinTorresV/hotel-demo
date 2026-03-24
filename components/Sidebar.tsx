@@ -19,7 +19,7 @@ export default function Sidebar() {
             <Hotel size={18} color="white" />
           </div>
           <div>
-            <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: 'white', lineHeight: 1.2 }}>Pacifico Sur</p>
+            <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: 'white', lineHeight: 1.2 }}>Hotel</p>
             <p style={{ margin: 0, fontSize: 10, color: '#64748b', lineHeight: 1.2 }}>Sistema de Aprobación</p>
           </div>
         </div>
