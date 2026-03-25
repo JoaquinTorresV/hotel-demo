@@ -27,8 +27,10 @@ export default function Sidebar() {
 
       {/* Nav */}
       <nav style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+
+        {/* Flujo 1 */}
         <p style={{ fontSize: 10, fontWeight: 600, color: '#334155', letterSpacing: '0.08em', textTransform: 'uppercase', padding: '4px 16px 8px', margin: 0 }}>
-          Principal
+          Flujo 1 — Hotel recibe
         </p>
         <Link href="/" className={`nav-item ${path === '/' ? 'active' : ''}`}>
           <LayoutDashboard size={16} />
@@ -39,13 +41,30 @@ export default function Sidebar() {
           Documentos
         </Link>
 
-        <p style={{ fontSize: 10, fontWeight: 600, color: '#334155', letterSpacing: '0.08em', textTransform: 'uppercase', padding: '16px 16px 8px', margin: 0 }}>
+        {/* Separador visual */}
+        <div style={{ margin: '10px 8px', borderTop: '1px solid rgba(255,255,255,0.07)' }} />
+
+        {/* Flujo 2 */}
+        <p style={{ fontSize: 10, fontWeight: 600, color: '#334155', letterSpacing: '0.08em', textTransform: 'uppercase', padding: '4px 16px 8px', margin: 0 }}>
+          Flujo 2 — Hotel emite
+        </p>
+        <Link href="/emision" className={`nav-item ${path === '/emision' ? 'active' : ''}`}>
+          <Send size={16} />
+          Emisión y aprobación
+        </Link>
+
+        {/* Separador visual */}
+        <div style={{ margin: '10px 8px', borderTop: '1px solid rgba(255,255,255,0.07)' }} />
+
+        {/* Sistema */}
+        <p style={{ fontSize: 10, fontWeight: 600, color: '#334155', letterSpacing: '0.08em', textTransform: 'uppercase', padding: '4px 16px 8px', margin: 0 }}>
           Sistema
         </p>
         <Link href="/configuracion" className={`nav-item ${path === '/configuracion' ? 'active' : ''}`}>
           <Settings size={16} />
           Configuración
         </Link>
+
       </nav>
 
       {/* Status dot */}
