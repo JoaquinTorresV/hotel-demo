@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { Mail, MessageCircle, Save, CheckCircle, Bell, Shield, Users, Sliders, Eye, EyeOff, AlertCircle } from 'lucide-react'
+import { Mail, MessageCircle, Save, CheckCircle, Bell, Shield, Users, Sliders, Eye, EyeOff, AlertCircle, Sparkles } from 'lucide-react'
 import { getConfiguracion, saveConfiguracion, ConfigData } from '@/lib/api'
 
 const DEFAULT: ConfigData = {
@@ -10,6 +10,7 @@ const DEFAULT: ConfigData = {
   umbral_verde: 1000000, umbral_rojo: 10000000,
   tolerancia: 15, dias_duplicados: 90,
   sla_24h: true, sla_48h: true, sla_72h: true, sla_96h: true,
+  gemini_api_key: '',
 }
 
 function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
@@ -221,6 +222,34 @@ export default function Configuracion() {
             <div key={z.cl} style={{ flex: 1, background: `var(--${z.cl}-bg)`, border: `1px solid var(--${z.cl}-bd)`, borderRadius: 8, padding: '8px 12px' }}>
               <p style={{ margin: 0, fontSize: 11, fontWeight: 600, color: `var(--${z.cl})` }}>{z.label}</p>
               <p style={{ margin: 0, fontSize: 11, color: `var(--${z.cl})` }}>{z.sub}</p>
+            </div>
+          ))}
+        </div>
+      </Section>
+
+      {/* ── IA / Gemini ── */}
+      <Section icon={<Sparkles size={16} color="var(--accent)" />} title="Inteligencia Artificial — Gemini">
+        <div style={{ padding: '10px 14px', background: cfg.gemini_api_key ? 'var(--verde-bg)' : 'var(--amarillo-bg)', border: `1px solid ${cfg.gemini_api_key ? 'var(--verde-bd)' : 'var(--amarillo-bd)'}`, borderRadius: 8, marginBottom: 14, fontSize: 12, color: cfg.gemini_api_key ? 'var(--verde)' : 'var(--amarillo)', display: 'flex', alignItems: 'center', gap: 6 }}>
+          {cfg.gemini_api_key ? <CheckCircle size={13} /> : <AlertCircle size={13} />}
+          {cfg.gemini_api_key ? 'IA activa — Análisis automático, resumen ejecutivo y chat habilitados.' : 'Sin API key — la IA no está activa. Obtén una gratis en aistudio.google.com.'}
+        </div>
+        <div>
+          <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--gray-600)', marginBottom: 6 }}>API Key de Gemini</label>
+          <p style={{ margin: '0 0 8px', fontSize: 11, color: 'var(--gray-400)' }}>
+            Gratis en <a href="https://aistudio.google.com" target="_blank" style={{ color: 'var(--accent)', textDecoration: 'none' }}>aistudio.google.com</a> → "Get API key" → Copia y pega aquí
+          </p>
+          <input style={inputStyle} type="password" placeholder="AIzaSy..."
+            value={cfg.gemini_api_key || ''} onChange={e => set('gemini_api_key', e.target.value)} />
+        </div>
+        <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+          {[
+            { t: 'Análisis de facturas', d: 'Explica por qué una factura es sospechosa en lenguaje natural' },
+            { t: 'Resumen ejecutivo', d: 'Resume cada factura para el equipo directivo automáticamente' },
+            { t: 'Chat con documentos', d: 'Consulta el historial financiero en lenguaje natural' },
+          ].map(f => (
+            <div key={f.t} style={{ background: 'var(--gray-50)', border: '1px solid var(--gray-200)', borderRadius: 8, padding: '8px 10px' }}>
+              <p style={{ margin: '0 0 3px', fontSize: 11, fontWeight: 600 }}>{f.t}</p>
+              <p style={{ margin: 0, fontSize: 10, color: 'var(--gray-400)' }}>{f.d}</p>
             </div>
           ))}
         </div>

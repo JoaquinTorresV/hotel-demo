@@ -65,6 +65,7 @@ CONFIG = {
     "sla_24h": True, "sla_48h": True, "sla_72h": True, "sla_96h": True,
     # URL base para botones en emails
     "base_url": "http://localhost:8000",
+    "gemini_api_key": "",   # API key gratuita: aistudio.google.com
 }
 
 # Cargar config guardada al arrancar (persiste entre reinicios)
@@ -86,6 +87,7 @@ class ConfigUpdate(BaseModel):
     sla_48h: Optional[bool] = None
     sla_72h: Optional[bool] = None
     sla_96h: Optional[bool] = None
+    gemini_api_key:   Optional[str] = None
 
 # ─── Base de datos en memoria ────────────────────────────────────────────────
 DOCUMENTOS = {}
@@ -687,6 +689,152 @@ def rechazar_emision(factura_id: str, area_id: str):
       <p style="color:#555;font-size:14px">El flujo fue detenido. Se notificó al equipo de finanzas.</p>
       <p style="font-size:11px;color:#999">{factura_id} · {datetime.datetime.now().strftime("%d/%m/%Y %H:%M")}</p>
     </div></body></html>"""
+
+
+# ════════════════════════════════════════════════════════════════════════════
+#  MÓDULO DE IA — Gemini (demo gratis) → Claude (producción)
+#  3 funcionalidades: análisis, resumen ejecutivo, chat con documentos
+# ════════════════════════════════════════════════════════════════════════════
+
+import google.generativeai as genai
+
+def get_gemini():
+    """Inicializa Gemini con la API key guardada en CONFIG."""
+    api_key = CONFIG.get("gemini_api_key", "")
+    if not api_key:
+        return None
+    genai.configure(api_key=api_key)
+    return genai.GenerativeModel("gemini-1.5-flash")
+
+def ia_disponible() -> bool:
+    return bool(CONFIG.get("gemini_api_key", ""))
+
+def llamar_ia(prompt: str, fallback: str = "") -> str:
+    """Llama a Gemini. Si falla o no está configurado, devuelve el fallback."""
+    model = get_gemini()
+    if not model:
+        return fallback
+    try:
+        resp = model.generate_content(prompt)
+        return resp.text.strip()
+    except Exception as ex:
+        print(f"  [IA] Error Gemini: {ex}")
+        return fallback
+
+def prompt_analisis(datos: dict, clasificacion: dict) -> str:
+    zona = clasificacion.get("zona", "")
+    motivos = "\n".join(f"- {m}" for m in clasificacion.get("motivos", []))
+    return f"""Eres el sistema de análisis financiero del Renaissance Santiago Hotel.
+Analizaste una factura y estos son los datos extraídos:
+
+Proveedor: {datos.get("proveedor", "Desconocido")}
+RUT: {datos.get("rut", "—")}
+Folio: {datos.get("folio", "—")}
+Total: ${datos.get("total", 0):,.0f} CLP
+Fecha emisión: {datos.get("fecha_emision", "—")}
+Fecha vencimiento: {datos.get("fecha_vencimiento", "—")}
+
+El motor de reglas clasificó esta factura en ZONA {zona.upper()} por los siguientes motivos:
+{motivos}
+
+Escribe UN párrafo en español (máximo 4 oraciones) explicando:
+1. Qué significa esta clasificación en términos prácticos para el hotel
+2. Por qué es importante prestar atención a esta factura
+3. Qué acción concreta recomiendas (aprobar, revisar, o bloquear y verificar)
+
+Usa lenguaje claro y directo, como si hablaras con el jefe de finanzas del hotel.
+No uses asteriscos, bullets ni markdown. Solo texto corrido."""
+
+def prompt_resumen(datos: dict, clasificacion: dict) -> str:
+    zona = clasificacion.get("zona", "")
+    return f"""Eres el asistente financiero del Renaissance Santiago Hotel.
+Resume en 2-3 oraciones esta factura para el equipo directivo:
+
+Proveedor: {datos.get("proveedor", "Desconocido")}
+Concepto detectado: {datos.get("concepto", "Servicios varios")}
+Total: ${datos.get("total", 0):,.0f} CLP
+Clasificación automática: Zona {zona}
+
+El resumen debe ser ejecutivo: qué es, cuánto vale, y si requiere atención.
+Sin markdown, sin bullets, solo texto natural en español."""
+
+def prompt_chat(pregunta: str, documentos: list) -> str:
+    docs_texto = ""
+    for d in documentos[-20:]:  # Últimos 20 docs para no saturar el contexto
+        datos = d.get("datos", {})
+        zona = d.get("estado", "")
+        docs_texto += f"- {datos.get('proveedor','?')} | ${datos.get('total',0):,.0f} CLP | Zona {zona} | {d.get('timestamp','')[:10]}\n"
+
+    return f"""Eres el asistente financiero inteligente del Renaissance Santiago Hotel.
+Tienes acceso al historial de facturas procesadas por el sistema:
+
+FACTURAS REGISTRADAS:
+{docs_texto if docs_texto else "No hay facturas registradas aún."}
+
+El usuario del hotel te pregunta:
+"{pregunta}"
+
+Responde de forma clara y directa en español. Si la pregunta es sobre datos financieros,
+da cifras concretas. Si no hay suficientes datos para responder, dilo honestamente.
+Máximo 4 oraciones. Sin markdown."""
+
+
+# ── Endpoints de IA ──────────────────────────────────────────────────────────
+
+class ChatInput(BaseModel):
+    pregunta: str
+
+@app.get("/ia/estado")
+def ia_estado():
+    return {
+        "disponible": ia_disponible(),
+        "proveedor": "Gemini 1.5 Flash (demo)" if ia_disponible() else "No configurado",
+        "configurar_en": "/configuracion"
+    }
+
+@app.post("/ia/analizar/{doc_id}")
+def ia_analizar_documento(doc_id: str):
+    """Análisis inteligente de una factura ya procesada."""
+    if doc_id not in DOCUMENTOS:
+        raise HTTPException(404, "Documento no encontrado")
+    doc = DOCUMENTOS[doc_id]
+    datos = doc["datos"]
+    clasificacion = doc["clasificacion"]
+
+    if not ia_disponible():
+        return {"analisis": "", "disponible": False, "mensaje": "Configura la API key de Gemini en /configuracion para activar el análisis con IA."}
+
+    analisis = llamar_ia(prompt_analisis(datos, clasificacion))
+    doc["ia_analisis"] = analisis  # Guardamos en memoria para no repetir llamada
+    return {"analisis": analisis, "disponible": True}
+
+@app.post("/ia/resumen/{doc_id}")
+def ia_resumen_documento(doc_id: str):
+    """Resumen ejecutivo de una factura."""
+    if doc_id not in DOCUMENTOS:
+        raise HTTPException(404, "Documento no encontrado")
+    doc = DOCUMENTOS[doc_id]
+
+    if not ia_disponible():
+        return {"resumen": "", "disponible": False}
+
+    resumen = llamar_ia(prompt_resumen(doc["datos"], doc["clasificacion"]))
+    doc["ia_resumen"] = resumen
+    return {"resumen": resumen, "disponible": True}
+
+@app.post("/ia/chat")
+def ia_chat(body: ChatInput):
+    """Chat con los documentos del hotel en lenguaje natural."""
+    if not ia_disponible():
+        return {"respuesta": "La IA no está configurada. Agrega tu API key de Gemini en Configuración.", "disponible": False}
+
+    if not body.pregunta.strip():
+        raise HTTPException(400, "La pregunta no puede estar vacía")
+
+    docs = list(DOCUMENTOS.values())
+    respuesta = llamar_ia(prompt_chat(body.pregunta, docs))
+    return {"respuesta": respuesta, "disponible": True, "docs_analizados": len(docs)}
+
 
 if __name__ == "__main__":
     import uvicorn

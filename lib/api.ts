@@ -56,6 +56,7 @@ export interface ConfigData {
   sla_72h: boolean
   sla_96h: boolean
   email_password_set?: boolean
+  gemini_api_key?: string
 }
 
 export async function getConfiguracion(): Promise<ConfigData> {
@@ -70,6 +71,35 @@ export async function saveConfiguracion(data: Partial<ConfigData>): Promise<{ ok
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   })
+  if (!res.ok) throw new Error(`Error ${res.status}`)
+  return res.json()
+}
+
+// ── IA endpoints ─────────────────────────────────────────────────────────────
+export async function iaAnalizar(docId: string): Promise<{ analisis: string; disponible: boolean; mensaje?: string }> {
+  const res = await fetch(`${API}/ia/analizar/${docId}`, { method: 'POST' })
+  if (!res.ok) throw new Error(`Error ${res.status}`)
+  return res.json()
+}
+
+export async function iaResumen(docId: string): Promise<{ resumen: string; disponible: boolean }> {
+  const res = await fetch(`${API}/ia/resumen/${docId}`, { method: 'POST' })
+  if (!res.ok) throw new Error(`Error ${res.status}`)
+  return res.json()
+}
+
+export async function iaChat(pregunta: string): Promise<{ respuesta: string; disponible: boolean; docs_analizados?: number }> {
+  const res = await fetch(`${API}/ia/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pregunta }),
+  })
+  if (!res.ok) throw new Error(`Error ${res.status}`)
+  return res.json()
+}
+
+export async function iaEstado(): Promise<{ disponible: boolean; proveedor: string }> {
+  const res = await fetch(`${API}/ia/estado`)
   if (!res.ok) throw new Error(`Error ${res.status}`)
   return res.json()
 }

@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Settings, FileText, Hotel, Send } from 'lucide-react'
+import { LayoutDashboard, Settings, FileText, Hotel, Send, Sparkles } from 'lucide-react'
 
 export default function Sidebar() {
   const path = usePathname()
@@ -39,6 +39,10 @@ export default function Sidebar() {
         <Link href="/documentos" className={`nav-item ${path === '/documentos' ? 'active' : ''}`}>
           <FileText size={16} />
           Documentos
+        </Link>
+        <Link href="/chat" className={`nav-item ${path === '/chat' ? 'active' : ''}`}>
+          <Sparkles size={16} />
+          Chat IA
         </Link>
 
         {/* Separador visual */}

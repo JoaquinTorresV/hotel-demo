@@ -1,7 +1,7 @@
 'use client'
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { Upload, FileText, CheckCircle, XCircle, AlertCircle, ChevronRight, Clock } from 'lucide-react'
-import { procesarPDF, listarDocumentos, DocResult, DocListItem } from '@/lib/api'
+import { procesarPDF, listarDocumentos, iaAnalizar, iaResumen, DocResult, DocListItem } from '@/lib/api'
 
 const PASOS = [
   { id: 1, label: 'Recepción del documento',  sub: 'Archivo recibido y registrado' },
@@ -45,6 +45,9 @@ export default function Dashboard() {
   const [error, setError]           = useState<string | null>(null)
   const [docs, setDocs]             = useState<DocListItem[]>([])
   const [archivo, setArchivo]       = useState<string>('')
+  const [iaAnalisis, setIaAnalisis]   = useState<string>('')
+  const [iaRes, setIaRes]             = useState<string>('')
+  const [iaLoading, setIaLoading]     = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -74,6 +77,16 @@ export default function Dashboard() {
         const res = await procesarPDF(file)
         setResultado(res)
         setDocs(prev => [{ ...res, archivo: file.name, estado: res.zona } as DocListItem, ...prev])
+        // Llamadas IA en paralelo (no bloqueante)
+        setIaAnalisis(''); setIaRes(''); setIaLoading(true)
+        Promise.all([
+          iaAnalizar(res.doc_id).catch(() => ({ analisis: '', disponible: false })),
+          iaResumen(res.doc_id).catch(() => ({ resumen: '', disponible: false })),
+        ]).then(([analisis, resumen]) => {
+          setIaAnalisis((analisis as any).analisis || '')
+          setIaRes((resumen as any).resumen || '')
+          setIaLoading(false)
+        })
       } catch {
         setError('No se pudo conectar al motor. ¿Está corriendo en localhost:8000?')
       } finally {
@@ -226,6 +239,33 @@ export default function Dashboard() {
                   <p style={{ margin: 0, fontSize: 11, color: 'var(--gray-400)', display: 'flex', alignItems: 'center', gap: 4 }}>
                     <CheckCircle size={11} /> Notificación por email enviada automáticamente
                   </p>
+                )}
+
+                {/* ── Bloque IA ── */}
+                {(iaLoading || iaRes || iaAnalisis) && (
+                  <div style={{ marginTop: 12, borderTop: '1px solid rgba(0,0,0,0.06)', paddingTop: 12 }}>
+                    <p style={{ margin: '0 0 8px', fontSize: 10, fontWeight: 600, color: ZONA_COLOR[resultado.zona], textTransform: 'uppercase', letterSpacing: '0.06em', display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <span style={{ fontSize: 13 }}>✦</span> Análisis con IA
+                    </p>
+                    {iaLoading && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--gray-400)' }}>
+                        <span className="spinner" style={{ width: 12, height: 12, flexShrink: 0 }} />
+                        Analizando con Gemini…
+                      </div>
+                    )}
+                    {iaRes && !iaLoading && (
+                      <div style={{ background: 'rgba(255,255,255,0.55)', borderRadius: 8, padding: '8px 10px', marginBottom: 8 }}>
+                        <p style={{ margin: '0 0 3px', fontSize: 10, fontWeight: 600, color: 'var(--gray-600)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Resumen ejecutivo</p>
+                        <p style={{ margin: 0, fontSize: 12, lineHeight: 1.6, color: 'var(--gray-900)' }}>{iaRes}</p>
+                      </div>
+                    )}
+                    {iaAnalisis && !iaLoading && (
+                      <div style={{ background: 'rgba(255,255,255,0.55)', borderRadius: 8, padding: '8px 10px' }}>
+                        <p style={{ margin: '0 0 3px', fontSize: 10, fontWeight: 600, color: 'var(--gray-600)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Análisis detallado</p>
+                        <p style={{ margin: 0, fontSize: 12, lineHeight: 1.6, color: 'var(--gray-900)' }}>{iaAnalisis}</p>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             )}
