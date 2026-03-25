@@ -696,27 +696,29 @@ def rechazar_emision(factura_id: str, area_id: str):
 #  3 funcionalidades: análisis, resumen ejecutivo, chat con documentos
 # ════════════════════════════════════════════════════════════════════════════
 
-import google.generativeai as genai
+from google import genai
 
 def get_gemini():
     """Inicializa Gemini con la API key guardada en CONFIG."""
     api_key = CONFIG.get("gemini_api_key", "")
     if not api_key:
         return None
-    genai.configure(api_key=api_key)
-    return genai.GenerativeModel("gemini-1.5-flash")
+    return genai.Client(api_key=api_key)
 
 def ia_disponible() -> bool:
     return bool(CONFIG.get("gemini_api_key", ""))
 
 def llamar_ia(prompt: str, fallback: str = "") -> str:
     """Llama a Gemini. Si falla o no está configurado, devuelve el fallback."""
-    model = get_gemini()
-    if not model:
+    client = get_gemini()
+    if not client:
         return fallback
     try:
-        resp = model.generate_content(prompt)
-        return resp.text.strip()
+        response = client.models.generate_content(
+            model="gemini-3-flash-preview",
+            contents=prompt
+        )
+        return response.text.strip()
     except Exception as ex:
         print(f"  [IA] Error Gemini: {ex}")
         return fallback
@@ -788,7 +790,7 @@ class ChatInput(BaseModel):
 def ia_estado():
     return {
         "disponible": ia_disponible(),
-        "proveedor": "Gemini 1.5 Flash (demo)" if ia_disponible() else "No configurado",
+        "proveedor": "Gemini 3 Flash Preview (demo)" if ia_disponible() else "No configurado",
         "configurar_en": "/configuracion"
     }
 
