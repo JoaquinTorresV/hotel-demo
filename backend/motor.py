@@ -499,37 +499,55 @@ def solicitar_info(doc_id: str):
 
 
 # ════════════════════════════════════════════════════════════════════════════
-#  FLUJO 2 — FACTURAS QUE EL HOTEL EMITE (aprobación interna 3 etapas)
-#  Completamente separado del Flujo 1 (facturas que el hotel RECIBE)
+#  FLUJO 2 — FACTURAS QUE EL HOTEL EMITE (aprobación dinámica)
+#  Aprobadores completamente configurables por factura — sin límites fijos
 # ════════════════════════════════════════════════════════════════════════════
 
-# Base de datos en memoria para facturas emitidas
 FACTURAS_EMITIDAS = {}
 
-AREAS = [
-    {"id": "rrhh",      "nombre": "Recursos Humanos",  "orden": 1},
-    {"id": "marketing", "nombre": "Marketing",          "orden": 2},
-    {"id": "gerencia",  "nombre": "Gerencia General",   "orden": 3},
+# Catálogo de departamentos disponibles para el hotel
+DEPARTAMENTOS_HOTEL = [
+    {"id": "gerencia_general",   "nombre": "Gerencia General"},
+    {"id": "finanzas",           "nombre": "Finanzas y Contabilidad"},
+    {"id": "rrhh",               "nombre": "Recursos Humanos"},
+    {"id": "marketing",          "nombre": "Marketing y Ventas"},
+    {"id": "operaciones",        "nombre": "Operaciones"},
+    {"id": "fb_manager",         "nombre": "F&B Manager"},
+    {"id": "revenue",            "nombre": "Revenue Management"},
+    {"id": "eventos",            "nombre": "Eventos y Banquetes"},
+    {"id": "compras",            "nombre": "Compras y Proveedores"},
+    {"id": "legal",              "nombre": "Legal y Cumplimiento"},
+    {"id": "ti",                 "nombre": "Tecnología (TI)"},
+    {"id": "mantenimiento",      "nombre": "Mantenimiento"},
+    {"id": "housekeeping",       "nombre": "Housekeeping"},
+    {"id": "recepcion",          "nombre": "Recepción y Front Desk"},
+    {"id": "director_hotel",     "nombre": "Director del Hotel"},
 ]
 
-class FacturaEmitidaInput(BaseModel):
-    cliente:        str
-    rut_cliente:    str
-    concepto:       str
-    monto_neto:     int
-    descripcion:    Optional[str] = ""
-    email_rrhh:     Optional[str] = ""
-    email_marketing: Optional[str] = ""
-    email_gerencia_aprobador: Optional[str] = ""
+class AprobadorInput(BaseModel):
+    area_id:  str
+    nombre:   str
+    email:    str
+    orden:    int
 
-def email_aprobacion_interna(factura_id: str, factura: dict, area: dict) -> str:
-    base = CONFIG["base_url"]
-    iva = round(factura["monto_neto"] * 0.19)
-    total = factura["monto_neto"] + iva
+class FacturaEmitidaInput(BaseModel):
+    cliente:      str
+    rut_cliente:  str
+    concepto:     str
+    monto_neto:   int
+    descripcion:  Optional[str] = ""
+    aprobadores:  list  # Lista de AprobadorInput
+
+def email_aprobacion_interna(factura_id: str, factura: dict, aprobador: dict, total_etapas: int) -> str:
+    base    = CONFIG["base_url"]
+    iva     = factura["iva"]
+    total   = factura["total"]
+    area_id = aprobador["area_id"]
+    orden   = aprobador["orden"]
     return f"""<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#333">
 <div style="background:#1a3a5c;padding:16px 20px;border-radius:8px 8px 0 0">
-  <h2 style="color:white;margin:0;font-size:16px">Solicitud de aprobacion — {area["nombre"]}</h2>
-  <p style="color:#adc8e8;margin:4px 0 0;font-size:13px">Renaissance Santiago Hotel · Factura a emitir</p>
+  <h2 style="color:white;margin:0;font-size:16px">Solicitud de aprobacion — {aprobador["nombre"]}</h2>
+  <p style="color:#adc8e8;margin:4px 0 0;font-size:13px">Renaissance Santiago Hotel · Etapa {orden} de {total_etapas}</p>
 </div>
 <div style="border:1px solid #ddd;border-top:none;padding:20px;border-radius:0 0 8px 8px">
   <p style="font-size:13px;color:#555;margin:0 0 16px">Se requiere tu aprobacion antes de emitir esta factura al cliente:</p>
@@ -540,156 +558,160 @@ def email_aprobacion_interna(factura_id: str, factura: dict, area: dict) -> str:
     <tr><td style="padding:8px 12px;color:#666">Monto neto</td><td style="padding:8px 12px">$ {factura["monto_neto"]:,.0f} CLP</td></tr>
     <tr style="background:#f5f5f5"><td style="padding:8px 12px;color:#666">IVA (19%)</td><td style="padding:8px 12px">$ {iva:,.0f} CLP</td></tr>
     <tr><td style="padding:8px 12px;color:#666">Total a cobrar</td><td style="padding:8px 12px;font-weight:bold;color:#1a3a5c;font-size:15px">$ {total:,.0f} CLP</td></tr>
+    {f'<tr style="background:#f5f5f5"><td style="padding:8px 12px;color:#666">Descripcion</td><td style="padding:8px 12px">{factura["descripcion"]}</td></tr>' if factura.get("descripcion") else ""}
   </table>
-  <p style="font-size:13px;color:#555;margin-bottom:16px">Etapa <strong>{area["orden"]} de {len(AREAS)}</strong> — {area["nombre"]}</p>
+  <p style="font-size:13px;color:#555;margin-bottom:16px"><strong>Etapa {orden} de {total_etapas}</strong> — Aprobacion de {aprobador["nombre"]}</p>
   <div>
-    <a href="{base}/emision/aprobar/{factura_id}/{area["id"]}" style="display:inline-block;background:#2d7a3a;color:white;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:14px;margin-right:8px">Aprobar</a>
-    <a href="{base}/emision/rechazar/{factura_id}/{area["id"]}" style="display:inline-block;background:#a02020;color:white;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:14px">Rechazar</a>
+    <a href="{base}/emision/aprobar/{factura_id}/{area_id}" style="display:inline-block;background:#2d7a3a;color:white;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:14px;margin-right:8px">Aprobar</a>
+    <a href="{base}/emision/rechazar/{factura_id}/{area_id}" style="display:inline-block;background:#a02020;color:white;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:14px">Rechazar</a>
   </div>
   <p style="font-size:11px;color:#999;margin-top:16px">Sin respuesta en 24h se enviara recordatorio automatico.</p>
 </div></body></html>"""
 
-def siguiente_area_pendiente(factura: dict):
-    """Devuelve la siguiente área que falta aprobar, o None si todas aprobaron."""
+def siguiente_aprobador_pendiente(factura: dict) -> Optional[dict]:
+    """Devuelve el siguiente aprobador que aún no ha respondido, en orden."""
     aprobaciones = factura.get("aprobaciones", {})
-    monto_neto = factura.get("monto_neto", 0)
-    for area in AREAS:
-        # Gerencia solo requerida si monto > 5.000.000
-        if area["id"] == "gerencia" and monto_neto <= 5_000_000:
-            continue
-        if aprobaciones.get(area["id"]) != "aprobado":
-            return area
+    for aprobador in sorted(factura["aprobadores"], key=lambda x: x["orden"]):
+        estado = aprobaciones.get(aprobador["area_id"])
+        if estado != "aprobado":
+            return aprobador
     return None
 
-def notificar_siguiente_area(factura_id: str, factura: dict):
-    """Envía email a la siguiente área pendiente de aprobación."""
-    area = siguiente_area_pendiente(factura)
-    if not area:
-        return  # Todas aprobaron
-    email_dest = {
-        "rrhh":      factura.get("email_rrhh") or CONFIG.get("email_aprobador", ""),
-        "marketing": factura.get("email_marketing") or CONFIG.get("email_aprobador", ""),
-        "gerencia":  factura.get("email_gerencia_aprobador") or CONFIG.get("email_gerencia", ""),
-    }.get(area["id"], "")
-    if email_dest:
-        html = email_aprobacion_interna(factura_id, factura, area)
-        enviar_email(email_dest, f"[{area['nombre']}] Aprobacion requerida — {factura['concepto']}", html)
+def notificar_siguiente_aprobador(factura_id: str, factura: dict):
+    aprobador = siguiente_aprobador_pendiente(factura)
+    if not aprobador or not aprobador.get("email"):
+        return
+    total_etapas = len(factura["aprobadores"])
+    html = email_aprobacion_interna(factura_id, factura, aprobador, total_etapas)
+    enviar_email(aprobador["email"], f"[{aprobador['nombre']}] Aprobacion requerida — {factura['concepto']}", html)
+
+@app.get("/emision/departamentos")
+def listar_departamentos():
+    """Lista todos los departamentos disponibles para configurar el flujo."""
+    return {"departamentos": DEPARTAMENTOS_HOTEL}
 
 @app.post("/emision/crear")
 def crear_factura_emitida(body: FacturaEmitidaInput):
-    """Crea una nueva factura a emitir e inicia el flujo de aprobacion interna."""
+    """Crea factura e inicia el flujo con los aprobadores que se definieron."""
+    if not body.aprobadores:
+        raise HTTPException(400, "Debes definir al menos un aprobador")
+
     factura_id = "EM-" + str(uuid.uuid4())[:6].upper()
     timestamp  = datetime.datetime.now().isoformat()
+    iva        = round(body.monto_neto * 0.19)
+
+    # Normalizar aprobadores y asignar orden secuencial
+    aprobadores = sorted(
+        [{"area_id": a["area_id"], "nombre": a["nombre"], "email": a["email"], "orden": a["orden"]}
+         for a in body.aprobadores],
+        key=lambda x: x["orden"]
+    )
 
     factura = {
         "id":           factura_id,
         "cliente":      body.cliente,
         "rut_cliente":  body.rut_cliente,
         "concepto":     body.concepto,
+        "descripcion":  body.descripcion or "",
         "monto_neto":   body.monto_neto,
-        "descripcion":  body.descripcion,
-        "iva":          round(body.monto_neto * 0.19),
-        "total":        body.monto_neto + round(body.monto_neto * 0.19),
-        "email_rrhh":           body.email_rrhh,
-        "email_marketing":      body.email_marketing,
-        "email_gerencia_aprobador": body.email_gerencia_aprobador,
-        "estado":       "pendiente",
+        "iva":          iva,
+        "total":        body.monto_neto + iva,
+        "aprobadores":  aprobadores,
         "aprobaciones": {},
-        "historial":    [{"accion": "Factura creada e ingresada al flujo", "ts": timestamp}],
+        "estado":       "pendiente",
+        "historial":    [{"accion": f"Factura creada — {len(aprobadores)} aprobadores configurados", "ts": timestamp}],
         "timestamp":    timestamp,
-        # Gerencia solo requerida si monto_neto > 5.000.000
-        "requiere_gerencia": body.monto_neto > 5_000_000,
-        "areas_requeridas": ["rrhh", "marketing"] + (["gerencia"] if body.monto_neto > 5_000_000 else []),
     }
     FACTURAS_EMITIDAS[factura_id] = factura
+    notificar_siguiente_aprobador(factura_id, factura)
 
-    # Notificar primera área (RRHH siempre primero)
-    notificar_siguiente_area(factura_id, factura)
+    print(f"\n  [EMISION] {factura_id} para {body.cliente} — $ {body.monto_neto:,.0f} CLP")
+    print(f"  [EMISION] Flujo: {' → '.join(a['nombre'] for a in aprobadores)}")
 
-    print(f"\n  [EMISION] Nueva factura {factura_id} para {body.cliente} — $ {body.monto_neto:,.0f} CLP")
-    print(f"  [EMISION] Areas requeridas: {factura['areas_requeridas']}")
-    return {"factura_id": factura_id, "estado": "pendiente", "siguiente_area": (siguiente_area_pendiente(factura) or {}).get("nombre"), "areas_requeridas": factura["areas_requeridas"]}
+    siguiente = siguiente_aprobador_pendiente(factura)
+    return {
+        "factura_id":      factura_id,
+        "estado":          "pendiente",
+        "total_etapas":    len(aprobadores),
+        "siguiente_area":  siguiente["nombre"] if siguiente else None,
+        "flujo":           [a["nombre"] for a in aprobadores],
+    }
 
 @app.get("/emision/listar")
 def listar_facturas_emitidas():
-    """Lista todas las facturas emitidas con su estado de aprobacion."""
     resultado = []
     for f in FACTURAS_EMITIDAS.values():
-        area_actual = siguiente_area_pendiente(f)
+        sig = siguiente_aprobador_pendiente(f)
+        aprobadas = sum(1 for v in f["aprobaciones"].values() if v == "aprobado")
         resultado.append({
             **f,
-            "area_pendiente": area_actual["nombre"] if area_actual else None,
-            "progreso": len(f["aprobaciones"]),
-            "total_etapas": len(f["areas_requeridas"]),
+            "area_pendiente":  sig["nombre"] if sig else None,
+            "progreso":        aprobadas,
+            "total_etapas":    len(f["aprobadores"]),
         })
     return {"total": len(resultado), "facturas": resultado}
 
 @app.get("/emision/aprobar/{factura_id}/{area_id}", response_class=HTMLResponse)
 def aprobar_emision(factura_id: str, area_id: str):
-    """Un área aprueba su etapa — avanza al siguiente aprobador."""
     if factura_id not in FACTURAS_EMITIDAS:
         raise HTTPException(404, "Factura no encontrada")
     factura = FACTURAS_EMITIDAS[factura_id]
     if factura["estado"] == "rechazada":
         return "<html><body style='font-family:Arial;text-align:center;padding:60px'><h2 style='color:#a02020'>Esta factura ya fue rechazada</h2></body></html>"
 
-    area_nombre = next((a["nombre"] for a in AREAS if a["id"] == area_id), area_id)
+    area_nombre = next((a["nombre"] for a in factura["aprobadores"] if a["area_id"] == area_id), area_id)
     ts = datetime.datetime.now().isoformat()
     factura["aprobaciones"][area_id] = "aprobado"
     factura["historial"].append({"accion": f"Aprobado por {area_nombre}", "ts": ts})
 
-    siguiente = siguiente_area_pendiente(factura)
+    siguiente = siguiente_aprobador_pendiente(factura)
     if siguiente:
         factura["estado"] = "en_proceso"
-        notificar_siguiente_area(factura_id, factura)
-        msg = f"Aprobado por {area_nombre}. Solicitud enviada a {siguiente['nombre']}."
+        notificar_siguiente_aprobador(factura_id, factura)
+        msg   = f"Aprobado. Solicitud enviada a {siguiente['nombre']}."
         color = "#b8860b"
     else:
         factura["estado"] = "aprobada"
-        factura["historial"].append({"accion": "Todas las areas aprobaron — lista para emitir", "ts": ts})
-        msg = "Todas las areas aprobaron. La factura esta lista para emitirse al cliente."
+        factura["historial"].append({"accion": "Todas las etapas aprobadas — lista para emitir", "ts": ts})
+        msg   = "Todas las etapas completadas. La factura está lista para emitirse al cliente."
         color = "#2d7a3a"
-        # Notificar a quien creo la factura
-        resumen_html = f"""<html><body style='font-family:Arial;max-width:600px;margin:0 auto;padding:20px'>
+        resumen = f"""<html><body style='font-family:Arial;max-width:600px;margin:0 auto;padding:20px'>
         <div style='background:#2d7a3a;padding:16px;border-radius:8px 8px 0 0'><h2 style='color:white;margin:0'>Factura aprobada — lista para emitir</h2></div>
         <div style='border:1px solid #ddd;padding:20px;border-radius:0 0 8px 8px'>
-        <p>La factura para <strong>{factura["cliente"]}</strong> por <strong>$ {factura["total"]:,.0f} CLP</strong> ha sido aprobada por todas las areas.</p>
-        <p style='color:#555;font-size:13px'>Concepto: {factura["concepto"]}</p>
-        </div></body></html>"""
-        enviar_email(CONFIG.get("email_aprobador",""), f"Factura aprobada — {factura['cliente']}", resumen_html)
+        <p>La factura para <strong>{factura["cliente"]}</strong> por <strong>$ {factura["total"]:,.0f} CLP</strong> fue aprobada por todas las áreas.</p>
+        <p style='color:#555;font-size:13px'>Concepto: {factura["concepto"]}</p></div></body></html>"""
+        enviar_email(CONFIG.get("email_aprobador", ""), f"✓ Factura aprobada — {factura['cliente']}", resumen)
 
     return f"""<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;max-width:500px;margin:60px auto;text-align:center">
     <div style="background:#e8f5e9;border:1px solid #a5d6a7;border-radius:12px;padding:40px">
       <div style="font-size:48px">✓</div>
-      <h2 style="color:{color}">Aprobado — {area_nombre}</h2>
+      <h2 style="color:{color}">{area_nombre} — Aprobado</h2>
       <p style="color:#555;font-size:14px">{msg}</p>
       <p style="font-size:11px;color:#999">{factura_id} · {datetime.datetime.now().strftime("%d/%m/%Y %H:%M")}</p>
     </div></body></html>"""
 
 @app.get("/emision/rechazar/{factura_id}/{area_id}", response_class=HTMLResponse)
 def rechazar_emision(factura_id: str, area_id: str):
-    """Un área rechaza la factura — se detiene el flujo."""
     if factura_id not in FACTURAS_EMITIDAS:
         raise HTTPException(404, "Factura no encontrada")
     factura = FACTURAS_EMITIDAS[factura_id]
-    area_nombre = next((a["nombre"] for a in AREAS if a["id"] == area_id), area_id)
+    area_nombre = next((a["nombre"] for a in factura["aprobadores"] if a["area_id"] == area_id), area_id)
     ts = datetime.datetime.now().isoformat()
     factura["aprobaciones"][area_id] = "rechazado"
     factura["estado"] = "rechazada"
     factura["historial"].append({"accion": f"Rechazado por {area_nombre} — flujo detenido", "ts": ts})
 
-    enviar_email(CONFIG.get("email_aprobador",""),
-        f"Factura rechazada por {area_nombre} — {factura['cliente']}",
-        f"<html><body style='font-family:Arial;padding:20px'><h3 style='color:#a02020'>Factura rechazada</h3><p>La factura para <strong>{factura['cliente']}</strong> fue rechazada por <strong>{area_nombre}</strong>.</p></body></html>")
+    aviso = f"""<html><body style='font-family:Arial;padding:20px'><h3 style='color:#a02020'>Factura rechazada</h3>
+    <p>La factura para <strong>{factura['cliente']}</strong> fue rechazada por <strong>{area_nombre}</strong>.</p></body></html>"""
+    enviar_email(CONFIG.get("email_aprobador", ""), f"✗ Factura rechazada — {factura['cliente']}", aviso)
 
     return f"""<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;max-width:500px;margin:60px auto;text-align:center">
     <div style="background:#fff0f0;border:1px solid #ef9a9a;border-radius:12px;padding:40px">
       <div style="font-size:48px">✗</div>
-      <h2 style="color:#a02020">Rechazado — {area_nombre}</h2>
-      <p style="color:#555;font-size:14px">El flujo fue detenido. Se notificó al equipo de finanzas.</p>
+      <h2 style="color:#a02020">{area_nombre} — Rechazado</h2>
+      <p style="color:#555;font-size:14px">El flujo fue detenido. El equipo de finanzas fue notificado.</p>
       <p style="font-size:11px;color:#999">{factura_id} · {datetime.datetime.now().strftime("%d/%m/%Y %H:%M")}</p>
     </div></body></html>"""
-
 
 # ════════════════════════════════════════════════════════════════════════════
 #  MÓDULO DE IA — Gemini (demo gratis) → Claude (producción)
