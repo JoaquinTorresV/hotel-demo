@@ -94,7 +94,7 @@ DOCUMENTOS = {}
 
 # ─── Lista blanca de proveedores ─────────────────────────────────────────────
 LISTA_BLANCA = {
-    "12.456.789-5": {"nombre": "Distribuidora López e Hijos Ltda.", "media_historica": 650_000},
+    "12.456.789-5": {"nombre": "Distribuidora López e Hijos Ltda.", "media_historica": 800_000},
     "76.321.654-K": {"nombre": "Sistemas Técnicos SA",              "media_historica": 1_060_000},
     "9.876.543-2":  {"nombre": "Lavandería Industrial Norte Ltda.", "media_historica": 280_000},
     "15.432.100-8": {"nombre": "Suministros Gastronómicos SPA",     "media_historica": 420_000},
