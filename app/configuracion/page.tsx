@@ -53,11 +53,13 @@ export default function Configuracion() {
   const [showPass, setShowPass] = useState(false)
   const [emailOk, setEmailOk] = useState(false)
   const [error, setError]     = useState<string | null>(null)
+  const geminiSource = cfg.gemini_api_key_source ?? (cfg.gemini_api_key_set ? 'config' : 'none')
+  const geminiActiva = geminiSource !== 'none'
 
   useEffect(() => {
     getConfiguracion()
       .then(data => {
-        setCfg(prev => ({ ...prev, ...data, email_password: '' }))
+        setCfg(prev => ({ ...prev, ...data, email_password: '', gemini_api_key: '' }))
         setEmailOk(!!data.email_password_set)
         setLoading(false)
       })
@@ -72,6 +74,7 @@ export default function Configuracion() {
     try {
       const payload: Partial<ConfigData> = { ...cfg }
       if (!payload.email_password) delete payload.email_password
+      if (!payload.gemini_api_key) delete payload.gemini_api_key
       const res = await saveConfiguracion(payload)
       setEmailOk(res.email_configurado)
       setSaved(true)
@@ -229,17 +232,26 @@ export default function Configuracion() {
 
       {/* ── IA / Gemini ── */}
       <Section icon={<Sparkles size={16} color="var(--accent)" />} title="Inteligencia Artificial — Gemini">
-        <div style={{ padding: '10px 14px', background: cfg.gemini_api_key ? 'var(--verde-bg)' : 'var(--amarillo-bg)', border: `1px solid ${cfg.gemini_api_key ? 'var(--verde-bd)' : 'var(--amarillo-bd)'}`, borderRadius: 8, marginBottom: 14, fontSize: 12, color: cfg.gemini_api_key ? 'var(--verde)' : 'var(--amarillo)', display: 'flex', alignItems: 'center', gap: 6 }}>
-          {cfg.gemini_api_key ? <CheckCircle size={13} /> : <AlertCircle size={13} />}
-          {cfg.gemini_api_key ? 'IA activa — Análisis automático, resumen ejecutivo y chat habilitados.' : 'Sin API key — la IA no está activa. Obtén una gratis en aistudio.google.com.'}
+        <div style={{ padding: '10px 14px', background: geminiActiva ? 'var(--verde-bg)' : 'var(--amarillo-bg)', border: `1px solid ${geminiActiva ? 'var(--verde-bd)' : 'var(--amarillo-bd)'}`, borderRadius: 8, marginBottom: 14, fontSize: 12, color: geminiActiva ? 'var(--verde)' : 'var(--amarillo)', display: 'flex', alignItems: 'center', gap: 6 }}>
+          {geminiActiva ? <CheckCircle size={13} /> : <AlertCircle size={13} />}
+          {geminiActiva
+            ? (geminiSource === 'env'
+              ? 'IA activa — usando GEMINI_API_KEY desde el entorno. La clave no se guarda en config.json.'
+              : 'IA activa — Análisis automático, resumen ejecutivo y chat habilitados.')
+            : 'Sin API key — la IA no está activa. Obtén una gratis en aistudio.google.com.'}
         </div>
         <div>
           <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--gray-600)', marginBottom: 6 }}>API Key de Gemini</label>
           <p style={{ margin: '0 0 8px', fontSize: 11, color: 'var(--gray-400)' }}>
-            Gratis en <a href="https://aistudio.google.com" target="_blank" style={{ color: 'var(--accent)', textDecoration: 'none' }}>aistudio.google.com</a> → "Get API key" → Copia y pega aquí
+            Gratis en <a href="https://aistudio.google.com" target="_blank" style={{ color: 'var(--accent)', textDecoration: 'none' }}>aistudio.google.com</a> → "Get API key" → copia y pega aquí para uso local.
           </p>
           <input style={inputStyle} type="password" placeholder="AIzaSy..."
-            value={cfg.gemini_api_key || ''} onChange={e => set('gemini_api_key', e.target.value)} />
+            value={cfg.gemini_api_key || ''} onChange={e => set('gemini_api_key', e.target.value)} disabled={geminiSource === 'env'} />
+          {geminiSource === 'env' && (
+            <p style={{ margin: '8px 0 0', fontSize: 11, color: 'var(--gray-400)' }}>
+              La clave se toma desde el entorno del backend. Este campo queda deshabilitado para evitar sobrescribirla desde la UI.
+            </p>
+          )}
         </div>
         <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
           {[

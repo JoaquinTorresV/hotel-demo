@@ -14,5 +14,5 @@
   "sla_72h": true,
   "sla_96h": true,
   "base_url": "http://localhost:8000",
-  "gemini_api_key": "AIzaSyCWuhv0Ml4MJczg-YJfFeAe9TFDb4Q-ZzU"
+  "gemini_api_key": ""
 }

@@ -57,6 +57,8 @@ export interface ConfigData {
   sla_96h: boolean
   email_password_set?: boolean
   gemini_api_key?: string
+  gemini_api_key_set?: boolean
+  gemini_api_key_source?: 'env' | 'config' | 'none'
 }
 
 export async function getConfiguracion(): Promise<ConfigData> {
@@ -65,7 +67,7 @@ export async function getConfiguracion(): Promise<ConfigData> {
   return res.json()
 }
 
-export async function saveConfiguracion(data: Partial<ConfigData>): Promise<{ ok: boolean; email_configurado: boolean }> {
+export async function saveConfiguracion(data: Partial<ConfigData>): Promise<{ ok: boolean; email_configurado: boolean; gemini_api_key_set?: boolean; gemini_api_key_source?: string }> {
   const res = await fetch(`${API}/configuracion`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

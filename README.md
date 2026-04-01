@@ -29,6 +29,14 @@ python motor.py
 # → http://localhost:8000
 ```
 
+Variables de entorno del backend:
+```bash
+GEMINI_API_KEY=tu_clave_de_google_ai
+GEMINI_MODEL=gemini-2.0-flash
+GEMINI_MAX_RETRIES=2
+```
+Puedes ponerla en `backend/.env` para desarrollo local o en las variables de entorno de Render para producción.
+
 ### Frontend
 ```bash
 cd hotel-demo
@@ -37,10 +45,21 @@ npm run dev
 # → http://localhost:3000
 ```
 
+Variable de entorno del frontend:
+```bash
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
+En Vercel, configura `NEXT_PUBLIC_API_URL` apuntando al backend de Render.
+
 ## Páginas
 - `/` — Dashboard con upload de PDF y pipeline animado en tiempo real
 - `/documentos` — Tabla de todos los documentos procesados
 - `/configuracion` — Panel sin código: emails, umbrales, WhatsApp, SLA, proveedores
+
+## Gemini
+- El backend lee `GEMINI_API_KEY` desde el entorno y, si no existe, usa el fallback local de `backend/config.json`.
+- Si Gemini devuelve 503 o responde vacío, el backend reintenta y luego usa un fallback local para no dejar el resumen o el chat en blanco.
+- La UI de configuración ya no expone la clave guardada; solo muestra si Gemini está activo y de dónde viene la configuración.
 
 ## Zonas de clasificación
 | Zona | Criterio | Acción |

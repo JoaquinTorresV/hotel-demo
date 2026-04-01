@@ -17,14 +17,36 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 import pdfplumber
-import re, uuid, datetime, os, smtplib, tempfile, json, pathlib
+import re, uuid, datetime, os, smtplib, tempfile, json, pathlib, time
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pydantic import BaseModel
 from typing import Optional
 
-# Persistencia JSON config
-CONFIG_FILE = pathlib.Path("config.json")
+# Persistencia JSON config y variables de entorno
+BASE_DIR = pathlib.Path(__file__).resolve().parent
+CONFIG_FILE = BASE_DIR / "config.json"
+ENV_FILE = BASE_DIR / ".env"
+DEFAULT_GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+GEMINI_MAX_RETRIES = max(1, int(os.getenv("GEMINI_MAX_RETRIES", "2")))
+
+def load_env_file(path: pathlib.Path = ENV_FILE):
+    if not path.exists():
+        return
+    try:
+        for raw_line in path.read_text(encoding="utf-8").splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip().strip('"').strip("'")
+            if key and key not in os.environ:
+                os.environ[key] = value
+    except Exception as ex:
+        print(f"  [ENV] Error leyendo {path.name}: {ex}")
+
+load_env_file()
 
 def cargar_config() -> dict:
     if CONFIG_FILE.exists():
@@ -70,6 +92,19 @@ CONFIG = {
 
 # Cargar config guardada al arrancar (persiste entre reinicios)
 CONFIG.update(cargar_config())
+
+def get_gemini_api_key() -> str:
+    env_key = os.getenv("GEMINI_API_KEY", "").strip()
+    if env_key:
+        return env_key
+    return str(CONFIG.get("gemini_api_key", "")).strip()
+
+def gemini_api_source() -> str:
+    if os.getenv("GEMINI_API_KEY", "").strip():
+        return "env"
+    if str(CONFIG.get("gemini_api_key", "")).strip():
+        return "config"
+    return "none"
 
 # ─── Modelo Pydantic para recibir config desde el frontend ───────────────────
 class ConfigUpdate(BaseModel):
@@ -338,19 +373,29 @@ def health():
 
 @app.get("/configuracion")
 def get_configuracion():
-    """Devuelve la config actual (sin exponer la contraseña)."""
-    cfg_publica = {k: v for k, v in CONFIG.items() if k != "email_password"}
+    """Devuelve la config actual sin exponer secretos."""
+    cfg_publica = {k: v for k, v in CONFIG.items() if k not in {"email_password", "gemini_api_key"}}
     cfg_publica["email_password_set"] = bool(CONFIG.get("email_password"))
+    cfg_publica["gemini_api_key_set"] = bool(get_gemini_api_key())
+    cfg_publica["gemini_api_key_source"] = gemini_api_source()
     return cfg_publica
 
 @app.post("/configuracion")
 def set_configuracion(body: ConfigUpdate):
     """Guarda config enviada desde el frontend."""
     update = body.model_dump(exclude_none=True)
+    if os.getenv("GEMINI_API_KEY", "").strip():
+        update.pop("gemini_api_key", None)
     CONFIG.update(update)
     guardar_config(CONFIG)  # persiste en config.json
     print(f"\n  [CONFIG] Actualizado y guardado: {list(update.keys())}")
-    return {"ok": True, "email_configurado": email_configurado(), "campos_actualizados": list(update.keys())}
+    return {
+        "ok": True,
+        "email_configurado": email_configurado(),
+        "campos_actualizados": list(update.keys()),
+        "gemini_api_key_set": bool(get_gemini_api_key()),
+        "gemini_api_key_source": gemini_api_source(),
+    }
 
 @app.post("/procesar")
 async def procesar_documento(archivo: UploadFile = File(...)):
@@ -721,29 +766,85 @@ def rechazar_emision(factura_id: str, area_id: str):
 from google import genai
 
 def get_gemini():
-    """Inicializa Gemini con la API key guardada en CONFIG."""
-    api_key = CONFIG.get("gemini_api_key", "")
+    """Inicializa Gemini con la API key del entorno o la config local."""
+    api_key = get_gemini_api_key()
     if not api_key:
         return None
     return genai.Client(api_key=api_key)
 
 def ia_disponible() -> bool:
-    return bool(CONFIG.get("gemini_api_key", ""))
+    return bool(get_gemini_api_key())
+
+def formatear_clp(valor: int | float) -> str:
+    return f"$ {valor:,.0f} CLP"
+
+def fallback_analisis(datos: dict, clasificacion: dict) -> str:
+    zona = str(clasificacion.get("zona", "")).lower()
+    proveedor = datos.get("proveedor") or "este proveedor"
+    total = formatear_clp(datos.get("total", 0))
+    if zona == "verde":
+        return f"La factura de {proveedor} por {total} cae en zona verde, así que el monto parece estar dentro del patrón esperado. Conviene aprobarla y seguir el flujo normal, porque no muestra señales fuertes de riesgo."
+    if zona == "amarilla":
+        return f"La factura de {proveedor} por {total} quedó en zona amarilla porque se sale del comportamiento esperado y merece revisión. Lo prudente es validar el detalle antes de aprobarla, para confirmar que el cargo esté justificado y no haya duplicidad o sobrecosto."
+    return f"La factura de {proveedor} por {total} quedó en zona roja, lo que indica un riesgo alto para el hotel. La recomendación es bloquear y verificar antes de avanzar, porque el monto o la señal de control requiere revisión manual."
+
+def fallback_resumen(datos: dict, clasificacion: dict) -> str:
+    zona = str(clasificacion.get("zona", "")).lower()
+    proveedor = datos.get("proveedor") or "proveedor no identificado"
+    concepto = datos.get("concepto") or "servicios varios"
+    total = formatear_clp(datos.get("total", 0))
+    zona_texto = {"verde": "zona verde", "amarilla": "zona amarilla", "roja": "zona roja"}.get(zona, "una zona no determinada")
+    return f"Factura de {proveedor} por {total}, asociada a {concepto}. Quedó clasificada en {zona_texto} y conviene revisarla según el flujo normal del hotel."
+
+def fallback_chat(pregunta: str, documentos: list) -> str:
+    if not documentos:
+        return "No hay facturas registradas todavía, así que no puedo sacar conclusiones del historial."
+
+    total = sum((d.get("datos", {}) or {}).get("total", 0) for d in documentos)
+    verdes = sum(1 for d in documentos if d.get("estado") == "verde")
+    amarillas = sum(1 for d in documentos if d.get("estado") == "amarilla")
+    rojas = sum(1 for d in documentos if d.get("estado") == "roja")
+    mayor = max(documentos, key=lambda d: (d.get("datos", {}) or {}).get("total", 0))
+    mayor_datos = mayor.get("datos", {}) or {}
+
+    texto = pregunta.lower()
+    if any(p in texto for p in ["gastado", "gasto", "total", "monto"]):
+        return f"Con los documentos registrados llevas {formatear_clp(total)} procesados. Hay {verdes} en verde, {amarillas} en amarilla y {rojas} en roja."
+    if any(p in texto for p in ["proveedor", "más alto", "mas alto", "mayor"]):
+        return f"El proveedor con el monto más alto es {mayor_datos.get('proveedor', 'desconocido')} por {formatear_clp(mayor_datos.get('total', 0))}."
+    if any(p in texto for p in ["bloque", "pendient", "roja", "rojo"]):
+        return f"Tienes {rojas} facturas en zona roja y {amarillas} en amarilla. Esas son las que conviene revisar primero porque tienen mayor riesgo o requieren aprobación."
+    if any(p in texto for p in ["autom", "aprob", "verde"]):
+        return f"Hay {verdes} facturas en zona verde que pudieron seguir el flujo automático."
+
+    return f"Hay {len(documentos)} facturas registradas. El monto acumulado es {formatear_clp(total)} y la distribución actual es {verdes} verdes, {amarillas} amarillas y {rojas} rojas."
 
 def llamar_ia(prompt: str, fallback: str = "") -> str:
     """Llama a Gemini. Si falla o no está configurado, devuelve el fallback."""
     client = get_gemini()
     if not client:
         return fallback
-    try:
-        response = client.models.generate_content(
-            model="gemini-3-flash-preview",
-            contents=prompt
-        )
-        return response.text.strip()
-    except Exception as ex:
-        print(f"  [IA] Error Gemini: {ex}")
-        return fallback
+    last_error = None
+    model_name = os.getenv("GEMINI_MODEL", DEFAULT_GEMINI_MODEL)
+    for attempt in range(1, GEMINI_MAX_RETRIES + 1):
+        try:
+            response = client.models.generate_content(
+                model=model_name,
+                contents=prompt,
+            )
+            text = (response.text or "").strip()
+            if text:
+                return text
+            last_error = "Respuesta vacía de Gemini"
+        except Exception as ex:
+            last_error = ex
+            print(f"  [IA] Error Gemini (intento {attempt}/{GEMINI_MAX_RETRIES}): {ex}")
+            if attempt < GEMINI_MAX_RETRIES:
+                time.sleep(0.5 * attempt)
+
+    if last_error:
+        print(f"  [IA] Usando fallback local tras error Gemini: {last_error}")
+    return fallback
 
 def prompt_analisis(datos: dict, clasificacion: dict) -> str:
     zona = clasificacion.get("zona", "")
@@ -810,9 +911,10 @@ class ChatInput(BaseModel):
 
 @app.get("/ia/estado")
 def ia_estado():
+    fuente = gemini_api_source()
     return {
         "disponible": ia_disponible(),
-        "proveedor": "Gemini 3 Flash Preview (demo)" if ia_disponible() else "No configurado",
+        "proveedor": "Gemini 3 Flash Preview (entorno)" if fuente == "env" else ("Gemini 3 Flash Preview (config local)" if fuente == "config" else "No configurado"),
         "configurar_en": "/configuracion"
     }
 
@@ -826,9 +928,9 @@ def ia_analizar_documento(doc_id: str):
     clasificacion = doc["clasificacion"]
 
     if not ia_disponible():
-        return {"analisis": "", "disponible": False, "mensaje": "Configura la API key de Gemini en /configuracion para activar el análisis con IA."}
+        return {"analisis": fallback_analisis(datos, clasificacion), "disponible": False, "mensaje": "Gemini no está configurado. Se devolvió un análisis local de respaldo."}
 
-    analisis = llamar_ia(prompt_analisis(datos, clasificacion))
+    analisis = llamar_ia(prompt_analisis(datos, clasificacion), fallback_analisis(datos, clasificacion))
     doc["ia_analisis"] = analisis  # Guardamos en memoria para no repetir llamada
     return {"analisis": analisis, "disponible": True}
 
@@ -840,9 +942,9 @@ def ia_resumen_documento(doc_id: str):
     doc = DOCUMENTOS[doc_id]
 
     if not ia_disponible():
-        return {"resumen": "", "disponible": False}
+        return {"resumen": fallback_resumen(doc["datos"], doc["clasificacion"]), "disponible": False}
 
-    resumen = llamar_ia(prompt_resumen(doc["datos"], doc["clasificacion"]))
+    resumen = llamar_ia(prompt_resumen(doc["datos"], doc["clasificacion"]), fallback_resumen(doc["datos"], doc["clasificacion"]))
     doc["ia_resumen"] = resumen
     return {"resumen": resumen, "disponible": True}
 
@@ -856,7 +958,7 @@ def ia_chat(body: ChatInput):
         raise HTTPException(400, "La pregunta no puede estar vacía")
 
     docs = list(DOCUMENTOS.values())
-    respuesta = llamar_ia(prompt_chat(body.pregunta, docs))
+    respuesta = llamar_ia(prompt_chat(body.pregunta, docs), fallback_chat(body.pregunta, docs))
     return {"respuesta": respuesta, "disponible": True, "docs_analizados": len(docs)}
 
 
