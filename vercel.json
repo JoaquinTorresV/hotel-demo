@@ -1,12 +1,14 @@
 {
   "experimentalServices": {
     "frontend": {
-      "routePrefix": "/",
-      "framework": "nextjs"
+      "framework": "nextjs",
+      "routePrefix": "/"
     },
     "backend": {
+      "framework": "python",
       "entrypoint": "backend",
-      "routePrefix": "/_/backend"
+      "routePrefix": "/_/backend",
+      "startCommand": "python -m uvicorn main:app --host 0.0.0.0"
     }
   }
 }

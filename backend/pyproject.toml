@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hotel-backend"
+version = "1.0.0"
+description = "FastAPI backend for hotel document classification"
+requires-python = ">=3.8"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "pdfplumber",
+    "reportlab",
+    "google-genai",
+    "python-multipart",
+    "python-dotenv"
+]
+
+[project.scripts]
+app = "main:app"
