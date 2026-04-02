@@ -1,6 +1,7 @@
 fastapi
-uvicorn
+uvicorn[standard]
 pdfplumber
 python-multipart
 reportlab
 google-genai
+python-dotenv

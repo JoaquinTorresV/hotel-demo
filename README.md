@@ -1,69 +1,59 @@
-# Hotel — Sistema de Aprobación Documental
+# Renaissance Santiago Hotel — Sistema de Aprobación Documental
 
-Demo de automatización financiera para hoteles. Clasifica facturas PDF en zonas Verde/Amarilla/Roja y envía notificaciones automáticas por email.
+Demo de automatización financiera. Clasifica facturas PDF en zonas Verde/Amarilla/Roja con IA.
 
 ## Stack
-- **Frontend**: Next.js 15 + TypeScript + Tailwind CSS
-- **Backend**: Python + FastAPI + pdfplumber
+- **Frontend**: Next.js 15 + TypeScript + Tailwind — desplegado en **Vercel**
+- **Backend**: Python + FastAPI + pdfplumber — desplegado en **Railway**
 
-## Estructura
-```
-hotel-demo/        → Frontend Next.js
-  app/             → Páginas (Dashboard, Documentos, Configuración)
-  components/      → Sidebar
-  lib/api.ts       → Cliente HTTP hacia el backend
+## Deploy en producción
 
-demo_hotel/        → Backend Python
-  motor.py         → API FastAPI + motor de clasificación
-  generar_facturas.py → Genera 3 facturas PDF de prueba
-  test_motor.py    → Test de clasificación
-```
+### 1. Backend en Railway (gratis)
+1. Ve a [railway.app](https://railway.app) → New Project → Deploy from GitHub
+2. Selecciona este repositorio
+3. Railway detecta `railway.toml` automáticamente
+4. En Variables de entorno agrega:
+   - `GEMINI_API_KEY` → tu API key de Gemini
 
-## Cómo correr
+### 2. Frontend en Vercel
+1. Ve a [vercel.com](https://vercel.com) → New Project → importa este repo
+2. En Variables de entorno agrega:
+   - `NEXT_PUBLIC_API_URL` → la URL que te dio Railway (ej: `https://hotel-demo-production.up.railway.app`)
+3. Deploy
+
+## Desarrollo local
 
 ### Backend
 ```bash
-cd demo_hotel
-pip install fastapi uvicorn pdfplumber python-multipart reportlab
+cd backend
+pip install -r requirements.txt
 python motor.py
 # → http://localhost:8000
 ```
 
-Variables de entorno del backend:
-```bash
-GEMINI_API_KEY=tu_clave_de_google_ai
-GEMINI_MODEL=gemini-2.0-flash
-GEMINI_MAX_RETRIES=2
-```
-Puedes ponerla en `backend/.env` para desarrollo local o en las variables de entorno de Render para producción.
-
 ### Frontend
 ```bash
-cd hotel-demo
 npm install
 npm run dev
 # → http://localhost:3000
 ```
 
-Variable de entorno del frontend:
-```bash
-NEXT_PUBLIC_API_URL=http://localhost:8000
-```
-En Vercel, configura `NEXT_PUBLIC_API_URL` apuntando al backend de Render.
-
 ## Páginas
 - `/` — Dashboard con upload de PDF y pipeline animado en tiempo real
-- `/documentos` — Tabla de todos los documentos procesados
-- `/configuracion` — Panel sin código: emails, umbrales, WhatsApp, SLA, proveedores
-
-## Gemini
-- El backend lee `GEMINI_API_KEY` desde el entorno y, si no existe, usa el fallback local de `backend/config.json`.
-- Si Gemini devuelve 503 o responde vacío, el backend reintenta y luego usa un fallback local para no dejar el resumen o el chat en blanco.
-- La UI de configuración ya no expone la clave guardada; solo muestra si Gemini está activo y de dónde viene la configuración.
+- `/documentos` — Tabla de documentos procesados con filtros
+- `/emision` — Flujo 2: facturas que el hotel emite con aprobación dinámica
+- `/chat` — Chat IA con los documentos del hotel
+- `/configuracion` — Panel sin código: emails, Gemini, umbrales, proveedores
 
 ## Zonas de clasificación
 | Zona | Criterio | Acción |
 |------|----------|--------|
-| 🟢 Verde | Proveedor verificado + importe normal | Pago automático |
-| 🟡 Amarilla | Anomalía menor (importe fuera de histórico) | Notificación al aprobador |
-| 🔴 Roja | Proveedor desconocido o importe sobre umbral | Bloqueo + expediente a gerencia |
+| 🟢 Verde | Proveedor verificado + monto normal | Pago automático |
+| 🟡 Amarilla | Anomalía menor | Email al aprobador con 1 clic |
+| 🔴 Roja | Proveedor desconocido o monto crítico | Bloqueo + expediente a gerencia |
+
+## Facturas de prueba
+En `backend/facturas/` hay 3 PDFs listos para la demo:
+- `factura_verde.pdf` — Distribuidora López · $893.500 CLP → Verde
+- `factura_amarilla.pdf` — Sistemas Técnicos SA · $2.058.700 CLP → Amarilla  
+- `factura_roja.pdf` — Constructora Metropolitana · $29.155.000 CLP → Roja

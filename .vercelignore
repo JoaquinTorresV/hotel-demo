@@ -1,7 +1,8 @@
-.git
-.gitignore
-README.md
+backend/
+documentos/
+*.py
+*.toml
+*.cfg
+__pycache__/
+*.pyc
 .env
-.env.local
-node_modules
-.next
