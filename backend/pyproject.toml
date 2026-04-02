@@ -16,6 +16,3 @@ dependencies = [
     "python-multipart",
     "python-dotenv"
 ]
-
-[project.scripts]
-app = "main:app"
