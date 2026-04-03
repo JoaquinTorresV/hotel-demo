@@ -4,7 +4,7 @@ Stateless: no RAM storage, no files.
 El frontend guarda todo en localStorage.
 """
 
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import pdfplumber, re, uuid, datetime, smtplib, tempfile, os
 from email.mime.multipart import MIMEMultipart
@@ -208,11 +208,11 @@ class ProcesarConfig(BaseModel):
 @app.post("/api/procesar")
 async def procesar_documento(
     archivo: UploadFile = File(...),
-    email_remitente:  str = "",
-    email_password:   str = "",
-    email_aprobador:  str = "",
-    email_gerencia:   str = "",
-    base_url:         str = "https://hotel-demo-ivory.vercel.app",
+    email_remitente:  str = Form(default=""),
+    email_password:   str = Form(default=""),
+    email_aprobador:  str = Form(default=""),
+    email_gerencia:   str = Form(default=""),
+    base_url:         str = Form(default="https://hotel-demo-ivory.vercel.app"),
 ):
     if not archivo.filename or not archivo.filename.endswith(".pdf"):
         raise HTTPException(400, "Solo se aceptan archivos PDF")
@@ -309,7 +309,7 @@ def llamar_gemini(prompt: str, api_key: str) -> str:
         from google import genai
         client = genai.Client(api_key=api_key)
         resp   = client.models.generate_content(
-            model="gemini-1.5-flash", contents=prompt)
+            model="gemini-2.0-flash-lite", contents=prompt)
         return resp.text.strip()
     except Exception as ex:
         print(f"[IA] Error: {ex}")
