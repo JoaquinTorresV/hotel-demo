@@ -1,7 +1,5 @@
+node_modules/
+.next/
 backend/
-*.py
-*.toml
-*.cfg
-__pycache__/
 *.pyc
-.env
+**/__pycache__/
