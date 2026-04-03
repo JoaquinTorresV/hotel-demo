@@ -309,7 +309,7 @@ def llamar_gemini(prompt: str, api_key: str) -> str:
         from google import genai
         client = genai.Client(api_key=api_key)
         resp   = client.models.generate_content(
-            model="gemini-2.0-flash", contents=prompt)
+            model="gemini-1.5-flash", contents=prompt)
         return resp.text.strip()
     except Exception as ex:
         print(f"[IA] Error: {ex}")
