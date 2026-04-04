@@ -6,7 +6,7 @@
   "functions": {
     "api/index.py": {
       "maxDuration": 60,
-      "excludeFiles": "backend/**,node_modules/**,*.pdf,*.pyc,**/__pycache__/**"
+      "excludeFiles": "node_modules/**,*.pdf,*.pyc,**/__pycache__/**"
     }
   },
   "rewrites": [

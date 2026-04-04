@@ -909,6 +909,23 @@ Máximo 4 oraciones. Sin markdown."""
 class ChatInput(BaseModel):
     pregunta: str
 
+class IAInlineInput(BaseModel):
+    doc_data: Optional[dict] = None
+    zona: Optional[str] = ""
+    motivos: Optional[list] = None
+
+def _datos_desde_inline(doc_data: dict | None) -> dict:
+    payload = doc_data or {}
+    return {
+        "proveedor": payload.get("proveedor"),
+        "rut": payload.get("rut"),
+        "folio": payload.get("folio"),
+        "fecha_emision": payload.get("fecha_emision"),
+        "fecha_vencimiento": payload.get("fecha_vencimiento"),
+        "concepto": payload.get("concepto"),
+        "total": payload.get("total_clp", payload.get("total", 0)) or 0,
+    }
+
 @app.get("/ia/estado")
 def ia_estado():
     fuente = gemini_api_source()
@@ -948,16 +965,44 @@ def ia_resumen_documento(doc_id: str):
     doc["ia_resumen"] = resumen
     return {"resumen": resumen, "disponible": True}
 
+@app.post("/ia/analizar")
+def ia_analizar_inline(body: IAInlineInput):
+    """Análisis IA usando payload directo (compatibilidad frontend)."""
+    datos = _datos_desde_inline(body.doc_data)
+    clasificacion = {
+        "zona": (body.zona or "").lower(),
+        "motivos": body.motivos or [],
+    }
+    fallback = fallback_analisis(datos, clasificacion)
+    if not ia_disponible():
+        return {"analisis": fallback, "disponible": False, "mensaje": "Gemini no está configurado o no está disponible. Se devolvió un análisis local de respaldo."}
+    analisis = llamar_ia(prompt_analisis(datos, clasificacion), fallback)
+    return {"analisis": analisis, "disponible": True}
+
+@app.post("/ia/resumen")
+def ia_resumen_inline(body: IAInlineInput):
+    """Resumen IA usando payload directo (compatibilidad frontend)."""
+    datos = _datos_desde_inline(body.doc_data)
+    clasificacion = {
+        "zona": (body.zona or "").lower(),
+        "motivos": body.motivos or [],
+    }
+    fallback = fallback_resumen(datos, clasificacion)
+    if not ia_disponible():
+        return {"resumen": fallback, "disponible": False}
+    resumen = llamar_ia(prompt_resumen(datos, clasificacion), fallback)
+    return {"resumen": resumen, "disponible": True}
+
 @app.post("/ia/chat")
 def ia_chat(body: ChatInput):
     """Chat con los documentos del hotel en lenguaje natural."""
-    if not ia_disponible():
-        return {"respuesta": "La IA no está configurada. Agrega tu API key de Gemini en Configuración.", "disponible": False}
-
     if not body.pregunta.strip():
         raise HTTPException(400, "La pregunta no puede estar vacía")
 
     docs = list(DOCUMENTOS.values())
+    if not ia_disponible():
+        return {"respuesta": fallback_chat(body.pregunta, docs), "disponible": False, "docs_analizados": len(docs)}
+
     respuesta = llamar_ia(prompt_chat(body.pregunta, docs), fallback_chat(body.pregunta, docs))
     return {"respuesta": respuesta, "disponible": True, "docs_analizados": len(docs)}
 
