@@ -1,5 +1,4 @@
 node_modules/
 .next/
-backend/
 *.pyc
 **/__pycache__/
