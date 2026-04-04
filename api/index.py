@@ -304,7 +304,7 @@ class IARequest(BaseModel):
 
 def llamar_gemini(prompt: str, api_key: str = "") -> str:
     # Prioridad: variable de entorno > lo que manda el frontend
-    key = os.environ.get("GEMINI_API_KEY") or api_key
+    key = (os.environ.get("GEMINI_API_KEY") or api_key or "").strip()
     if not key:
         return ""
     try:
@@ -317,9 +317,23 @@ def llamar_gemini(prompt: str, api_key: str = "") -> str:
         print(f"[IA] Error: {ex}")
         return ""
 
+
+def ia_disponible(api_key: str = "") -> bool:
+    return bool((os.environ.get("GEMINI_API_KEY") or api_key or "").strip())
+
+
+@app.get("/api/ia/estado")
+async def ia_estado():
+    disponible = ia_disponible()
+    return {
+        "disponible": disponible,
+        "proveedor": "gemini" if disponible else "none",
+        "configurar_en": "vercel" if not disponible else None,
+    }
+
 @app.post("/api/ia/analizar")
 async def ia_analizar(body: IARequest):
-    if not body.gemini_api_key:
+    if not ia_disponible(body.gemini_api_key or ""):
         return {"analisis": "", "disponible": False}
     datos   = body.doc_data or {}
     motivos = "\n".join(f"- {m}" for m in (body.motivos or []))
@@ -338,7 +352,7 @@ Sin markdown, sin asteriscos, solo texto."""
 
 @app.post("/api/ia/resumen")
 async def ia_resumen(body: IARequest):
-    if not body.gemini_api_key:
+    if not ia_disponible(body.gemini_api_key or ""):
         return {"resumen": "", "disponible": False}
     datos  = body.doc_data or {}
     prompt = f"""Resume en 2 oraciones para directivos del Renaissance Santiago Hotel:
@@ -349,7 +363,7 @@ Sin markdown. Solo texto natural en español."""
 
 @app.post("/api/ia/chat")
 async def ia_chat(body: IARequest):
-    if not body.gemini_api_key:
+    if not ia_disponible(body.gemini_api_key or ""):
         return {"respuesta": "Configura la API key de Gemini en Configuración.", "disponible": False}
     if not body.pregunta:
         raise HTTPException(400, "Pregunta vacía")
@@ -362,6 +376,11 @@ Historial de facturas:
 Pregunta: "{body.pregunta}"
 Responde en máximo 4 oraciones en español, con datos concretos si los hay. Sin markdown."""
     respuesta = llamar_gemini(prompt, body.gemini_api_key)
+    if not respuesta:
+        return {
+            "respuesta": "No pude responder con Gemini en este momento. Reintenta en unos segundos.",
+            "disponible": False,
+        }
     return {"respuesta": respuesta, "disponible": True}
 
 # ── Flujo 2: emisión ─────────────────────────────────────────────────────────
