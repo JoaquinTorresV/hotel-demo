@@ -7,6 +7,16 @@ function fetchTimeout(url: string, opts: RequestInit = {}, ms = 30000) {
   return fetch(url, { ...opts, signal: ctrl.signal }).finally(() => clearTimeout(id))
 }
 
+function getApiBase(): string {
+  if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL
+  if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+    return 'http://localhost:8000'
+  }
+  return '/api'
+}
+
+const API_BASE = getApiBase()
+
 // ── Config desde localStorage ─────────────────────────────────────────────
 export interface Config {
   email_remitente:  string
@@ -103,56 +113,51 @@ export async function procesarPDF(file: File): Promise<DocResult> {
   form.append('email_aprobador',  cfg.email_aprobador)
   form.append('email_gerencia',   cfg.email_gerencia)
   form.append('base_url',         window.location.origin)
-  const res = await fetchTimeout('/api/procesar', { method: 'POST', body: form }, 60000)
+  const res = await fetchTimeout(`${API_BASE}/procesar`, { method: 'POST', body: form }, 60000)
   if (!res.ok) throw new Error(`Error ${res.status}`)
   return res.json()
 }
 
 export async function healthCheck(): Promise<boolean> {
   try {
-    const res = await fetchTimeout('/api/health', {}, 8000)
+    const res = await fetchTimeout(`${API_BASE}/health`, {}, 8000)
     return res.ok
   } catch { return false }
 }
 
 export async function iaAnalizar(doc: DocResult): Promise<string> {
-  const { gemini_api_key } = getConfig()
-  if (!gemini_api_key) return ''
-  const res = await fetchTimeout('/api/ia/analizar', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ gemini_api_key, doc_data: doc, zona: doc.zona, motivos: doc.motivos }),
-  }, 30000)
+  const res = await fetchTimeout(`${API_BASE}/ia/analizar/${doc.doc_id}`, { method: 'POST' }, 30000)
+  if (!res.ok) throw new Error(`Error ${res.status}`)
   const data = await res.json()
   return data.analisis || ''
 }
 
 export async function iaResumen(doc: DocResult): Promise<string> {
-  const { gemini_api_key } = getConfig()
-  if (!gemini_api_key) return ''
-  const res = await fetchTimeout('/api/ia/resumen', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ gemini_api_key, doc_data: doc, zona: doc.zona }),
-  }, 30000)
+  const res = await fetchTimeout(`${API_BASE}/ia/resumen/${doc.doc_id}`, { method: 'POST' }, 30000)
+  if (!res.ok) throw new Error(`Error ${res.status}`)
   const data = await res.json()
   return data.resumen || ''
 }
 
 export async function iaChat(pregunta: string): Promise<{ respuesta: string; disponible: boolean }> {
-  const { gemini_api_key } = getConfig()
-  const docs = getDocumentos()
-  const res = await fetchTimeout('/api/ia/chat', {
+  const res = await fetchTimeout(`${API_BASE}/ia/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ gemini_api_key, pregunta, documentos: docs }),
+    body: JSON.stringify({ pregunta }),
   }, 30000)
+  if (!res.ok) throw new Error(`Error ${res.status}`)
+  return res.json()
+}
+
+export async function iaEstado(): Promise<{ disponible: boolean; proveedor: string; configurar_en?: string }> {
+  const res = await fetchTimeout(`${API_BASE}/ia/estado`, {}, 8000)
+  if (!res.ok) throw new Error(`Error ${res.status}`)
   return res.json()
 }
 
 export async function crearEmision(body: any): Promise<FacturaEmitida> {
   const cfg = getConfig()
-  const res = await fetchTimeout('/api/emision/crear', {
+  const res = await fetchTimeout(`${API_BASE}/emision/crear`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -167,7 +172,7 @@ export async function crearEmision(body: any): Promise<FacturaEmitida> {
 }
 
 export async function getDepartamentos(): Promise<{ id: string; nombre: string }[]> {
-  const res = await fetchTimeout('/api/emision/departamentos')
+  const res = await fetchTimeout(`${API_BASE}/emision/departamentos`)
   const data = await res.json()
   return data.departamentos || []
 }

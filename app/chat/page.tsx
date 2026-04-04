@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { Send, MessageCircle, Sparkles, AlertCircle } from 'lucide-react'
-import { iaChat, getConfig } from '@/lib/api'
+import { iaChat, iaEstado } from '@/lib/api'
 
 interface Msg { rol: 'user'|'ia'; texto: string; ts: Date }
 
@@ -17,11 +17,13 @@ export default function Chat() {
   const [msgs, setMsgs]       = useState<Msg[]>([])
   const [input, setInput]     = useState('')
   const [cargando, setCargando] = useState(false)
-  const [tieneIA, setTieneIA] = useState(false)
+  const [tieneIA, setTieneIA] = useState<boolean | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    setTieneIA(!!getConfig().gemini_api_key)
+    iaEstado()
+      .then((r) => setTieneIA(!!r.disponible))
+      .catch(() => setTieneIA(false))
   }, [])
 
   useEffect(() => {
@@ -51,13 +53,15 @@ export default function Chat() {
           </div>
           <div>
             <h1 style={{ margin:0, fontSize:20, fontWeight:600 }}>Chat con los documentos</h1>
-            <p style={{ margin:0, fontSize:12, color:'var(--gray-400)' }}>{tieneIA ? 'Activo — Gemini Flash' : 'Configura la API key de Gemini para activar'}</p>
+            <p style={{ margin:0, fontSize:12, color:'var(--gray-400)' }}>
+              {tieneIA === null ? 'Verificando estado de IA...' : (tieneIA ? 'Activo — Gemini Flash' : 'IA no configurada en backend')}
+            </p>
           </div>
         </div>
-        {!tieneIA && (
+        {tieneIA === false && (
           <div style={{ background:'var(--amarillo-bg)', border:'1px solid var(--amarillo-bd)', borderRadius:10, padding:'10px 14px', fontSize:12, color:'var(--amarillo)', display:'flex', gap:8, alignItems:'center' }}>
             <AlertCircle size={14} style={{ flexShrink:0 }} />
-            Ve a <strong>Configuración → Inteligencia Artificial</strong> y agrega tu API key gratuita de <a href="https://aistudio.google.com" target="_blank" style={{ color:'var(--amarillo)' }}>aistudio.google.com</a>
+            La API key de Gemini debe estar configurada en las variables de entorno del backend (Vercel).
           </div>
         )}
       </div>

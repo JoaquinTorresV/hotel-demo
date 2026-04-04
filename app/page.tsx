@@ -3,7 +3,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { Upload, FileText, CheckCircle, XCircle, AlertCircle, ChevronRight, Clock, Trash2 } from 'lucide-react'
 import {
   procesarPDF, iaAnalizar, iaResumen, getDocumentos, saveDocumento,
-  clearDocumentos, getConfig, DocResult
+  clearDocumentos, DocResult
 } from '@/lib/api'
 
 const PASOS = [
@@ -73,22 +73,19 @@ export default function Dashboard() {
         saveDocumento(res)
         setDocs(getDocumentos())
         // IA en paralelo
-        const cfg = getConfig()
-        if (cfg.gemini_api_key) {
-          setIaLoading(true)
-          Promise.all([
-            iaAnalizar(res).catch(() => ''),
-            iaResumen(res).catch(() => ''),
-          ]).then(([analisis, resumen]) => {
-            setIaAnalisis(analisis)
-            setIaRes(resumen)
-            if (analisis || resumen) {
-              saveDocumento({ ...res, ia_analisis: analisis, ia_resumen: resumen })
-              setDocs(getDocumentos())
-            }
-            setIaLoading(false)
-          })
-        }
+        setIaLoading(true)
+        Promise.all([
+          iaAnalizar(res).catch(() => ''),
+          iaResumen(res).catch(() => ''),
+        ]).then(([analisis, resumen]) => {
+          setIaAnalisis(analisis)
+          setIaRes(resumen)
+          if (analisis || resumen) {
+            saveDocumento({ ...res, ia_analisis: analisis, ia_resumen: resumen })
+            setDocs(getDocumentos())
+          }
+          setIaLoading(false)
+        })
       } catch (e: any) {
         const msg = e.message?.includes('abort') ? 'Tiempo de espera agotado — intenta de nuevo' : 'Error al conectar con el motor. ¿Está activo?'
         setError(msg)
