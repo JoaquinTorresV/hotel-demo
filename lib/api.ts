@@ -126,14 +126,29 @@ export async function healthCheck(): Promise<boolean> {
 }
 
 export async function iaAnalizar(doc: DocResult): Promise<string> {
-  const res = await fetchTimeout(`${API_BASE}/ia/analizar/${doc.doc_id}`, { method: 'POST' }, 30000)
+  const res = await fetchTimeout(`${API_BASE}/ia/analizar`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      doc_data: doc,
+      zona: doc.zona,
+      motivos: doc.motivos,
+    }),
+  }, 30000)
   if (!res.ok) throw new Error(`Error ${res.status}`)
   const data = await res.json()
   return data.analisis || ''
 }
 
 export async function iaResumen(doc: DocResult): Promise<string> {
-  const res = await fetchTimeout(`${API_BASE}/ia/resumen/${doc.doc_id}`, { method: 'POST' }, 30000)
+  const res = await fetchTimeout(`${API_BASE}/ia/resumen`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      doc_data: doc,
+      zona: doc.zona,
+    }),
+  }, 30000)
   if (!res.ok) throw new Error(`Error ${res.status}`)
   const data = await res.json()
   return data.resumen || ''

@@ -16,6 +16,8 @@ app = FastAPI(title="Renaissance Santiago — Motor de Aprobación")
 app.add_middleware(CORSMiddleware, allow_origins=["*"],
                    allow_methods=["*"], allow_headers=["*"])
 
+DEFAULT_GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+
 # ── Lista blanca de proveedores ───────────────────────────────────────────────
 LISTA_BLANCA = {
     "12.456.789-5": {"nombre": "Distribuidora López e Hijos Ltda.", "media": 800_000},
@@ -310,11 +312,14 @@ def llamar_gemini(prompt: str, api_key: str = "") -> str:
     try:
         from google import genai
         client = genai.Client(api_key=key)
+        model_name = os.getenv("GEMINI_MODEL", DEFAULT_GEMINI_MODEL)
         resp   = client.models.generate_content(
-            model="gemini-2.0-flash-lite", contents=prompt)
+            model=model_name, contents=prompt)
         return resp.text.strip()
     except Exception as ex:
         print(f"[IA] Error: {ex}")
+        if "RESOURCE_EXHAUSTED" in str(ex) or "429" in str(ex):
+            return "__RATE_LIMIT__"
         return ""
 
 
@@ -376,6 +381,11 @@ Historial de facturas:
 Pregunta: "{body.pregunta}"
 Responde en máximo 4 oraciones en español, con datos concretos si los hay. Sin markdown."""
     respuesta = llamar_gemini(prompt, body.gemini_api_key)
+    if respuesta == "__RATE_LIMIT__":
+        return {
+            "respuesta": "Gemini reporta cuota agotada (429). Revisa el plan/cuota de tu API key y vuelve a intentar en unos minutos.",
+            "disponible": False,
+        }
     if not respuesta:
         return {
             "respuesta": "No pude responder con Gemini en este momento. Reintenta en unos segundos.",
