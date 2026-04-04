@@ -302,12 +302,14 @@ class IARequest(BaseModel):
     pregunta:       Optional[str] = ""
     documentos:     Optional[list] = []
 
-def llamar_gemini(prompt: str, api_key: str) -> str:
-    if not api_key:
+def llamar_gemini(prompt: str, api_key: str = "") -> str:
+    # Prioridad: variable de entorno > lo que manda el frontend
+    key = os.environ.get("GEMINI_API_KEY") or api_key
+    if not key:
         return ""
     try:
         from google import genai
-        client = genai.Client(api_key=api_key)
+        client = genai.Client(api_key=key)
         resp   = client.models.generate_content(
             model="gemini-2.0-flash-lite", contents=prompt)
         return resp.text.strip()
