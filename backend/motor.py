@@ -27,7 +27,7 @@ from typing import Optional
 BASE_DIR = pathlib.Path(__file__).resolve().parent
 CONFIG_FILE = BASE_DIR / "config.json"
 ENV_FILE = BASE_DIR / ".env"
-DEFAULT_GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+DEFAULT_GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash-8b")
 GEMINI_MAX_RETRIES = max(1, int(os.getenv("GEMINI_MAX_RETRIES", "2")))
 
 def load_env_file(path: pathlib.Path = ENV_FILE):
@@ -825,7 +825,9 @@ def llamar_ia(prompt: str, fallback: str = "") -> str:
     if not client:
         return fallback
     last_error = None
-    model_name = os.getenv("GEMINI_MODEL", DEFAULT_GEMINI_MODEL)
+    # Forzar modelo con free tier — ignorar env var si apunta a gemini-2.0
+    env_model = os.getenv("GEMINI_MODEL", "")
+    model_name = env_model if env_model and "2.0" not in env_model else DEFAULT_GEMINI_MODEL
     for attempt in range(1, GEMINI_MAX_RETRIES + 1):
         try:
             response = client.models.generate_content(
@@ -908,6 +910,7 @@ Máximo 4 oraciones. Sin markdown."""
 
 class ChatInput(BaseModel):
     pregunta: str
+    documentos: Optional[list] = []  # El frontend manda su historial (stateless)
 
 class IAInlineInput(BaseModel):
     doc_data: Optional[dict] = None
@@ -999,7 +1002,9 @@ def ia_chat(body: ChatInput):
     if not body.pregunta.strip():
         raise HTTPException(400, "La pregunta no puede estar vacía")
 
-    docs = list(DOCUMENTOS.values())
+    # Prioridad: docs del frontend (Vercel stateless) > DOCUMENTOS en RAM (local)
+    docs_frontend = body.documentos or []
+    docs = docs_frontend if docs_frontend else list(DOCUMENTOS.values())
     if not ia_disponible():
         return {"respuesta": fallback_chat(body.pregunta, docs), "disponible": False, "docs_analizados": len(docs)}
 

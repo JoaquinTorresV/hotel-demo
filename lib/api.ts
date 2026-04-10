@@ -158,7 +158,7 @@ export async function iaChat(pregunta: string): Promise<{ respuesta: string; dis
   const res = await fetchTimeout(`${API_BASE}/ia/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ pregunta }),
+    body: JSON.stringify({ pregunta, documentos: getDocumentos() }),
   }, 30000)
   if (!res.ok) throw new Error(`Error ${res.status}`)
   return res.json()
