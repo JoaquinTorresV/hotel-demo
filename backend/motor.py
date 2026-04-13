@@ -27,13 +27,13 @@ from typing import Optional
 BASE_DIR = pathlib.Path(__file__).resolve().parent
 CONFIG_FILE = BASE_DIR / "config.json"
 ENV_FILE = BASE_DIR / ".env"
-DEFAULT_GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+DEFAULT_GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
 DEFAULT_GEMINI_API_VERSION = os.getenv("GEMINI_API_VERSION", "v1").strip() or "v1"
 GEMINI_MAX_RETRIES = max(1, int(os.getenv("GEMINI_MAX_RETRIES", "2")))
 GEMINI_MODEL_FALLBACKS = [
     m.strip() for m in os.getenv(
         "GEMINI_MODEL_FALLBACKS",
-        "gemini-2.0-flash,gemini-2.5-flash,gemini-2.0-flash-lite",
+        "gemini-2.5-flash,gemini-2.5-pro",
     ).split(",") if m.strip()
 ]
 
@@ -807,16 +807,44 @@ def fallback_resumen(datos: dict, clasificacion: dict) -> str:
     zona_texto = {"verde": "zona verde", "amarilla": "zona amarilla", "roja": "zona roja"}.get(zona, "una zona no determinada")
     return f"Factura de {proveedor} por {total}, asociada a {concepto}. Quedó clasificada en {zona_texto} y conviene revisarla según el flujo normal del hotel."
 
+def _doc_datos_chat(doc: dict) -> dict:
+    """Normaliza documentos en formato anidado (backend) o plano (frontend)."""
+    nested = doc.get("datos") if isinstance(doc.get("datos"), dict) else {}
+    proveedor = nested.get("proveedor") or doc.get("proveedor") or "desconocido"
+    total_raw = nested.get("total", doc.get("total_clp", doc.get("total", 0)))
+    try:
+        total = float(total_raw or 0)
+    except Exception:
+        total = 0
+    return {"proveedor": proveedor, "total": total}
+
+def _doc_zona_chat(doc: dict) -> str:
+    """Mapea estados heterogéneos a: verde, amarilla o roja."""
+    estado_raw = " ".join([
+        str(doc.get("estado", "")),
+        str(doc.get("zona", "")),
+        str(doc.get("zona_label", "")),
+        str(doc.get("accion", "")),
+    ]).lower()
+    if any(tag in estado_raw for tag in ["roja", "bloque", "rechaz"]):
+        return "roja"
+    if "amarilla" in estado_raw:
+        return "amarilla"
+    if any(tag in estado_raw for tag in ["verde", "aprob"]):
+        return "verde"
+    return ""
+
 def fallback_chat(pregunta: str, documentos: list) -> str:
     if not documentos:
         return "No hay facturas registradas todavía, así que no puedo sacar conclusiones del historial."
 
-    total = sum((d.get("datos", {}) or {}).get("total", 0) for d in documentos)
-    verdes = sum(1 for d in documentos if d.get("estado") == "verde")
-    amarillas = sum(1 for d in documentos if d.get("estado") == "amarilla")
-    rojas = sum(1 for d in documentos if d.get("estado") == "roja")
-    mayor = max(documentos, key=lambda d: (d.get("datos", {}) or {}).get("total", 0))
-    mayor_datos = mayor.get("datos", {}) or {}
+    docs_norm = [{"datos": _doc_datos_chat(d), "zona": _doc_zona_chat(d)} for d in documentos]
+    total = sum(d["datos"].get("total", 0) for d in docs_norm)
+    verdes = sum(1 for d in docs_norm if d.get("zona") == "verde")
+    amarillas = sum(1 for d in docs_norm if d.get("zona") == "amarilla")
+    rojas = sum(1 for d in docs_norm if d.get("zona") == "roja")
+    mayor = max(docs_norm, key=lambda d: d["datos"].get("total", 0))
+    mayor_datos = mayor["datos"]
 
     texto = pregunta.lower()
     if any(p in texto for p in ["gastado", "gasto", "total", "monto"]):
@@ -902,8 +930,8 @@ Sin markdown, sin bullets, solo texto natural en español."""
 def prompt_chat(pregunta: str, documentos: list) -> str:
     docs_texto = ""
     for d in documentos[-20:]:  # Últimos 20 docs para no saturar el contexto
-        datos = d.get("datos", {})
-        zona = d.get("estado", "")
+        datos = _doc_datos_chat(d)
+        zona = _doc_zona_chat(d)
         docs_texto += f"- {datos.get('proveedor','?')} | ${datos.get('total',0):,.0f} CLP | Zona {zona} | {d.get('timestamp','')[:10]}\n"
 
     return f"""Eres el asistente financiero inteligente del Renaissance Santiago Hotel.
