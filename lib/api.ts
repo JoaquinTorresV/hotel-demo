@@ -85,9 +85,36 @@ export interface FacturaEmitida {
   progreso: number; total_etapas: number; timestamp: string
 }
 
+function numOrZero(v: unknown): number {
+  const n = typeof v === 'number' ? v : Number(v)
+  return Number.isFinite(n) ? n : 0
+}
+
+function normalizeFacturaEmitida(raw: any): FacturaEmitida {
+  return {
+    factura_id: String(raw?.factura_id ?? ''),
+    cliente: String(raw?.cliente ?? ''),
+    rut_cliente: String(raw?.rut_cliente ?? ''),
+    concepto: String(raw?.concepto ?? ''),
+    monto_neto: numOrZero(raw?.monto_neto),
+    iva: numOrZero(raw?.iva),
+    total: numOrZero(raw?.total),
+    aprobadores: Array.isArray(raw?.aprobadores) ? raw.aprobadores : [],
+    aprobaciones: raw?.aprobaciones && typeof raw.aprobaciones === 'object' ? raw.aprobaciones : {},
+    estado: String(raw?.estado ?? 'pendiente'),
+    area_pendiente: raw?.area_pendiente == null ? null : String(raw.area_pendiente),
+    progreso: numOrZero(raw?.progreso),
+    total_etapas: numOrZero(raw?.total_etapas),
+    timestamp: String(raw?.timestamp ?? new Date().toISOString()),
+  }
+}
+
 export function getFacturasEmitidas(): FacturaEmitida[] {
   if (typeof window === 'undefined') return []
-  try { return JSON.parse(localStorage.getItem('renaissance_emision') || '[]') }
+  try {
+    const raw = JSON.parse(localStorage.getItem('renaissance_emision') || '[]')
+    return Array.isArray(raw) ? raw.map(normalizeFacturaEmitida) : []
+  }
   catch { return [] }
 }
 

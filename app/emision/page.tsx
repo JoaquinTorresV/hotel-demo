@@ -10,9 +10,16 @@ const ESTADO_CFG: Record<string, { label: string; color: string; bg: string }> =
   rechazada:  { label: 'Rechazada',  color: 'var(--rojo)',      bg: 'var(--rojo-bg)' },
 }
 
-function fmtCLP(n: number) { return `$ ${n.toLocaleString('es-CL')} CLP` }
-function fmtDate(ts: string) {
-  return new Date(ts).toLocaleString('es-CL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+function fmtCLP(n: unknown) {
+  const num = typeof n === 'number' ? n : Number(n)
+  if (!Number.isFinite(num)) return '—'
+  return `$ ${num.toLocaleString('es-CL')} CLP`
+}
+function fmtDate(ts: string | null | undefined) {
+  if (!ts) return '—'
+  const d = new Date(ts)
+  if (Number.isNaN(d.getTime())) return '—'
+  return d.toLocaleString('es-CL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 
 const inp: React.CSSProperties = {
