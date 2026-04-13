@@ -28,6 +28,7 @@ BASE_DIR = pathlib.Path(__file__).resolve().parent
 CONFIG_FILE = BASE_DIR / "config.json"
 ENV_FILE = BASE_DIR / ".env"
 DEFAULT_GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+DEFAULT_GEMINI_API_VERSION = os.getenv("GEMINI_API_VERSION", "v1").strip() or "v1"
 GEMINI_MAX_RETRIES = max(1, int(os.getenv("GEMINI_MAX_RETRIES", "2")))
 
 def load_env_file(path: pathlib.Path = ENV_FILE):
@@ -764,13 +765,17 @@ def rechazar_emision(factura_id: str, area_id: str):
 # ════════════════════════════════════════════════════════════════════════════
 
 from google import genai
+from google.genai import types
 
 def get_gemini():
     """Inicializa Gemini con la API key del entorno o la config local."""
     api_key = get_gemini_api_key()
     if not api_key:
         return None
-    return genai.Client(api_key=api_key)
+    return genai.Client(
+        api_key=api_key,
+        http_options=types.HttpOptions(api_version=DEFAULT_GEMINI_API_VERSION),
+    )
 
 def ia_disponible() -> bool:
     return bool(get_gemini_api_key())
