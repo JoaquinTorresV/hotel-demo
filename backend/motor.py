@@ -27,7 +27,7 @@ from typing import Optional
 BASE_DIR = pathlib.Path(__file__).resolve().parent
 CONFIG_FILE = BASE_DIR / "config.json"
 ENV_FILE = BASE_DIR / ".env"
-DEFAULT_GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash-8b")
+DEFAULT_GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
 GEMINI_MAX_RETRIES = max(1, int(os.getenv("GEMINI_MAX_RETRIES", "2")))
 
 def load_env_file(path: pathlib.Path = ENV_FILE):
@@ -825,9 +825,9 @@ def llamar_ia(prompt: str, fallback: str = "") -> str:
     if not client:
         return fallback
     last_error = None
-    # Forzar modelo con free tier — ignorar env var si apunta a gemini-2.0
+    # Usa el modelo configurado por entorno o el default validado.
     env_model = os.getenv("GEMINI_MODEL", "")
-    model_name = env_model if env_model and "2.0" not in env_model else DEFAULT_GEMINI_MODEL
+    model_name = env_model if env_model else DEFAULT_GEMINI_MODEL
     for attempt in range(1, GEMINI_MAX_RETRIES + 1):
         try:
             response = client.models.generate_content(
