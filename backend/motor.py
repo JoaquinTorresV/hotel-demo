@@ -27,9 +27,15 @@ from typing import Optional
 BASE_DIR = pathlib.Path(__file__).resolve().parent
 CONFIG_FILE = BASE_DIR / "config.json"
 ENV_FILE = BASE_DIR / ".env"
-DEFAULT_GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+DEFAULT_GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
 DEFAULT_GEMINI_API_VERSION = os.getenv("GEMINI_API_VERSION", "v1").strip() or "v1"
 GEMINI_MAX_RETRIES = max(1, int(os.getenv("GEMINI_MAX_RETRIES", "2")))
+GEMINI_MODEL_FALLBACKS = [
+    m.strip() for m in os.getenv(
+        "GEMINI_MODEL_FALLBACKS",
+        "gemini-2.0-flash,gemini-2.5-flash,gemini-2.0-flash-lite",
+    ).split(",") if m.strip()
+]
 
 def load_env_file(path: pathlib.Path = ENV_FILE):
     if not path.exists():
@@ -830,24 +836,27 @@ def llamar_ia(prompt: str, fallback: str = "") -> str:
     if not client:
         return fallback
     last_error = None
-    # Usa el modelo configurado por entorno o el default validado.
-    env_model = os.getenv("GEMINI_MODEL", "")
-    model_name = env_model if env_model else DEFAULT_GEMINI_MODEL
-    for attempt in range(1, GEMINI_MAX_RETRIES + 1):
-        try:
-            response = client.models.generate_content(
-                model=model_name,
-                contents=prompt,
-            )
-            text = (response.text or "").strip()
-            if text:
-                return text
-            last_error = "Respuesta vacía de Gemini"
-        except Exception as ex:
-            last_error = ex
-            print(f"  [IA] Error Gemini (intento {attempt}/{GEMINI_MAX_RETRIES}): {ex}")
-            if attempt < GEMINI_MAX_RETRIES:
-                time.sleep(0.5 * attempt)
+    env_model = os.getenv("GEMINI_MODEL", "").strip()
+    model_candidates = [m for m in [env_model, DEFAULT_GEMINI_MODEL, *GEMINI_MODEL_FALLBACKS] if m]
+    # Eliminar duplicados preservando orden
+    model_candidates = list(dict.fromkeys(model_candidates))
+
+    for model_name in model_candidates:
+        for attempt in range(1, GEMINI_MAX_RETRIES + 1):
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=prompt,
+                )
+                text = (response.text or "").strip()
+                if text:
+                    return text
+                last_error = f"Respuesta vacía de Gemini con modelo {model_name}"
+            except Exception as ex:
+                last_error = ex
+                print(f"  [IA] Error Gemini modelo={model_name} (intento {attempt}/{GEMINI_MAX_RETRIES}): {ex}")
+                if attempt < GEMINI_MAX_RETRIES:
+                    time.sleep(0.5 * attempt)
 
     if last_error:
         print(f"  [IA] Usando fallback local tras error Gemini: {last_error}")
