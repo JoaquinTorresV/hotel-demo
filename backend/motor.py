@@ -834,15 +834,35 @@ def _doc_zona_chat(doc: dict) -> str:
         return "verde"
     return ""
 
+def _doc_estado_operativo_chat(doc: dict) -> str:
+    """Estado operativo para el chat según reglas del negocio."""
+    zona = _doc_zona_chat(doc)
+    estado_raw = " ".join([
+        str(doc.get("estado", "")),
+        str(doc.get("accion", "")),
+    ]).lower()
+    if zona == "roja" or "bloque" in estado_raw:
+        return "bloqueado"
+    if zona == "amarilla" or "pendient" in estado_raw:
+        return "pendiente_revision"
+    if zona == "verde" or "aprob" in estado_raw:
+        return "aprobado_automatico"
+    return "desconocido"
+
 def fallback_chat(pregunta: str, documentos: list) -> str:
     if not documentos:
         return "No hay facturas registradas todavía, así que no puedo sacar conclusiones del historial."
 
-    docs_norm = [{"datos": _doc_datos_chat(d), "zona": _doc_zona_chat(d)} for d in documentos]
+    docs_norm = [{
+        "datos": _doc_datos_chat(d),
+        "zona": _doc_zona_chat(d),
+        "estado_operativo": _doc_estado_operativo_chat(d),
+    } for d in documentos]
     total = sum(d["datos"].get("total", 0) for d in docs_norm)
     verdes = sum(1 for d in docs_norm if d.get("zona") == "verde")
     amarillas = sum(1 for d in docs_norm if d.get("zona") == "amarilla")
     rojas = sum(1 for d in docs_norm if d.get("zona") == "roja")
+    bloqueadas = sum(1 for d in docs_norm if d.get("estado_operativo") == "bloqueado")
     mayor = max(docs_norm, key=lambda d: d["datos"].get("total", 0))
     mayor_datos = mayor["datos"]
 
@@ -852,7 +872,9 @@ def fallback_chat(pregunta: str, documentos: list) -> str:
     if any(p in texto for p in ["proveedor", "más alto", "mas alto", "mayor"]):
         return f"El proveedor con el monto más alto es {mayor_datos.get('proveedor', 'desconocido')} por {formatear_clp(mayor_datos.get('total', 0))}."
     if any(p in texto for p in ["bloque", "pendient", "roja", "rojo"]):
-        return f"Tienes {rojas} facturas en zona roja y {amarillas} en amarilla. Esas son las que conviene revisar primero porque tienen mayor riesgo o requieren aprobación."
+        if bloqueadas > 0:
+            return f"Tienes {bloqueadas} factura(s) bloqueada(s) automáticamente por estar en zona roja. La acción recomendada es escalar a gerencia y validar respaldo antes de cualquier aprobación."
+        return f"No se observan facturas bloqueadas en el historial actual. Hay {rojas} en zona roja y {amarillas} en amarilla para revisión prioritaria."
     if any(p in texto for p in ["autom", "aprob", "verde"]):
         return f"Hay {verdes} facturas en zona verde que pudieron seguir el flujo automático."
 
@@ -932,7 +954,8 @@ def prompt_chat(pregunta: str, documentos: list) -> str:
     for d in documentos[-20:]:  # Últimos 20 docs para no saturar el contexto
         datos = _doc_datos_chat(d)
         zona = _doc_zona_chat(d)
-        docs_texto += f"- {datos.get('proveedor','?')} | ${datos.get('total',0):,.0f} CLP | Zona {zona} | {d.get('timestamp','')[:10]}\n"
+        estado_operativo = _doc_estado_operativo_chat(d)
+        docs_texto += f"- {datos.get('proveedor','?')} | ${datos.get('total',0):,.0f} CLP | Zona {zona} | Estado {estado_operativo} | {d.get('timestamp','')[:10]}\n"
 
     return f"""Eres el asistente financiero inteligente del Renaissance Santiago Hotel.
 Tienes acceso al historial de facturas procesadas por el sistema:
@@ -942,6 +965,11 @@ FACTURAS REGISTRADAS:
 
 El usuario del hotel te pregunta:
 "{pregunta}"
+
+Reglas operativas del hotel (OBLIGATORIAS):
+- Toda factura en zona roja se considera bloqueada automaticamente y requiere escalamiento.
+- Toda factura en zona amarilla queda pendiente de revision.
+- Toda factura en zona verde puede seguir flujo automatico.
 
 Responde de forma clara y directa en español. Si la pregunta es sobre datos financieros,
 da cifras concretas. Si no hay suficientes datos para responder, dilo honestamente.
