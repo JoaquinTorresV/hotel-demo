@@ -210,7 +210,29 @@ export async function crearEmision(body: any): Promise<FacturaEmitida> {
     }),
   }, 30000)
   if (!res.ok) throw new Error(`Error ${res.status}`)
-  return res.json()
+
+  const data = await res.json()
+
+  const montoNeto = numOrZero(body?.monto_neto)
+  const iva = Math.round(montoNeto * 0.19)
+  const aprobadores = Array.isArray(body?.aprobadores) ? body.aprobadores : []
+
+  return normalizeFacturaEmitida({
+    factura_id: data?.factura_id,
+    cliente: body?.cliente,
+    rut_cliente: body?.rut_cliente,
+    concepto: body?.concepto,
+    monto_neto: montoNeto,
+    iva,
+    total: montoNeto + iva,
+    aprobadores,
+    aprobaciones: {},
+    estado: data?.estado ?? 'pendiente',
+    area_pendiente: data?.siguiente_area ?? null,
+    progreso: 0,
+    total_etapas: numOrZero(data?.total_etapas || aprobadores.length),
+    timestamp: new Date().toISOString(),
+  })
 }
 
 export async function getDepartamentos(): Promise<{ id: string; nombre: string }[]> {
